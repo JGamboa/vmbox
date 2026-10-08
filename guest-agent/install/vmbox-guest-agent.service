@@ -1,0 +1,11 @@
+[Unit]
+Description=VMBox guest agent (vsock 7000)
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/local/bin/vmbox-guest-agent -port 7000
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
