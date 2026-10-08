@@ -26,6 +26,8 @@ public final class VMInstance: NSObject, Identifiable {
     public private(set) var config: VMConfig
     public private(set) var machine: VZVirtualMachine?
     public var diskUsageBytes: UInt64
+    /// Resolución del invitado para el próximo arranque (la app la calcula según la pantalla).
+    public var displayPlan: DisplayPlan = .fallback
     private var stateMachine = VMStateMachine()
     /// Estado de memoria a restaurar en el próximo `start()` (lo fija `restoreSnapshot`).
     public private(set) var pendingRestoreState: URL?
@@ -58,7 +60,7 @@ public final class VMInstance: NSObject, Identifiable {
     public func start() async throws {
         try stateMachine.apply(.startRequested)
         do {
-            let configuration = try VMConfigurationBuilder.build(config: config, bundle: bundle)
+            let configuration = try VMConfigurationBuilder.build(config: config, bundle: bundle, display: displayPlan)
             saveRestoreSupported = (try? configuration.validateSaveRestoreSupport()) != nil
             let vm = VZVirtualMachine(configuration: configuration)
             vm.delegate = self
@@ -70,7 +72,7 @@ public final class VMInstance: NSObject, Identifiable {
                     try await vm.resume()
                 } catch {
                     // Estado incompatible (p. ej. cambió la configuración): arranque en frío desde el disco restaurado.
-                    let fresh = VZVirtualMachine(configuration: try VMConfigurationBuilder.build(config: config, bundle: bundle))
+                    let fresh = VZVirtualMachine(configuration: try VMConfigurationBuilder.build(config: config, bundle: bundle, display: displayPlan))
                     fresh.delegate = self
                     machine = fresh
                     try await fresh.start()

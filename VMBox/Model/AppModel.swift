@@ -1,4 +1,5 @@
 import AgentControl
+import AppKit
 import Foundation
 import Observation
 import Virtualization
@@ -87,12 +88,21 @@ final class AppModel {
 
     func instance(for id: UUID) -> VMInstance? { vms.first { $0.id == id } }
 
+    /// Plan de pantalla según el área visible de la pantalla principal (`.fallback` si no hay).
+    static func displayPlan(for os: GuestOS) -> DisplayPlan {
+        guard let screen = NSScreen.main else { return .fallback }
+        let size = screen.visibleFrame.size
+        return DisplayPlan.make(for: os, screenWidthPoints: size.width, screenHeightPoints: size.height,
+                                backingScale: screen.backingScaleFactor)
+    }
+
     func start(_ id: UUID) async throws {
         guard let vm = instance(for: id) else { throw AppError.vmNotFound }
         guard vm.state != .running else { return }
         if vm.state == .paused { return try await vm.resume() }
         let running = vms.filter { $0.state.isActive && $0.id != id }.map(\.config.os)
         guard StartPolicy.check(starting: vm.config.os, running: running) == .ok else { throw AppError.macOSLimitReached }
+        vm.displayPlan = Self.displayPlan(for: vm.config.os)
         openVMWindow?(id)
         try await vm.start()
     }
