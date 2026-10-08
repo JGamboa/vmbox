@@ -61,7 +61,51 @@ final class SpikeController: NSObject, NSApplicationDelegate, VZVirtualMachineDe
     }
 
     /// Las tareas 0.2 y 0.3 añaden botones aquí.
-    func setUpButtons() {}
+    func setUpButtons() {
+        addButton("Capturar (A)", #selector(captureAll))
+        addButton("Capturar (plan B)", #selector(captureWithScreenCaptureKit))
+    }
+
+    @objc func captureAll() {
+        var report: [String] = ["vista: \(vmView.bounds.size) puntos, backing \(window.backingScaleFactor)"]
+        for strategy in ViewCapture.Strategy.allCases {
+            guard let image = ViewCapture.capture(vmView, using: strategy) else {
+                report.append("\(strategy.rawValue): nil")
+                continue
+            }
+            let stats = ViewCapture.stats(image)
+            let url = SpikeVM.outputDir.appending(path: "capture-\(strategy.rawValue).png")
+            try? ViewCapture.savePNG(image, to: url)
+            report.append(String(format: "%@: %dx%d mean=%.1f stddev=%.1f → %@",
+                                 strategy.rawValue, image.width, image.height, stats.mean, stats.stddev, url.path))
+        }
+        try? ViewCapture.describeLayers(vmView).write(
+            to: SpikeVM.outputDir.appending(path: "layers.txt"), atomically: true, encoding: .utf8)
+        report.forEach(log)
+    }
+
+    @objc func captureWithScreenCaptureKit() {
+        Task {
+            do {
+                let image = try await ViewCapture.screenCaptureKit(window: window)
+                let stats = ViewCapture.stats(image)
+                try ViewCapture.savePNG(image, to: SpikeVM.outputDir.appending(path: "capture-sck.png"))
+                log(String(format: "screenCaptureKit: %dx%d mean=%.1f stddev=%.1f", image.width, image.height, stats.mean, stats.stddev))
+            } catch {
+                log("screenCaptureKit falló: \(error)")
+            }
+        }
+    }
+
+    /// Primera estrategia de plan A que devuelve una imagen no uniforme (stddev > 2).
+    func bestCapture() -> CGImage? {
+        for strategy in ViewCapture.Strategy.allCases {
+            if let image = ViewCapture.capture(vmView, using: strategy), ViewCapture.stats(image).stddev > 2 {
+                return image
+            }
+        }
+        return nil
+    }
 
     func addButton(_ title: String, _ action: Selector) {
         buttonBar.addArrangedSubview(NSButton(title: title, target: self, action: action))
