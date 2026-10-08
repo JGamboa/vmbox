@@ -31,6 +31,7 @@ struct VMSettingsSheet: View {
             }
             .formStyle(.grouped)
             .frame(width: 420)
+            .modelAlert()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
