@@ -75,7 +75,10 @@ final class AgentVMAdapter: VMControlling {
     /// La VM solo se controla con ventana: si no existe, se abre y se espera la vista (hasta 4 s).
     private func ensureView() async throws -> VZVirtualMachineView {
         if let view = model.view(for: id), view.window != nil { return view }
-        model.openVMWindow?(id)
+        guard let open = model.openVMWindow else {
+            throw ControlError(code: .internalError, message: "No hay ninguna ventana de VMBox abierta; abre la biblioteca y reintenta")
+        }
+        open(id)
         for _ in 0..<40 {
             try await Task.sleep(for: .milliseconds(100))
             if let view = model.view(for: id), view.window != nil { return view }

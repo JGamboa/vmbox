@@ -14,10 +14,14 @@ struct ViewInputInjector {
 
     func perform(_ action: InputAction) async {
         switch action {
-        case let .click(point, button, count): await click(at: point, button: button, count: count)
+        case let .click(point, button, count):
+            view.window?.makeFirstResponder(view)
+            await click(at: point, button: button, count: count)
         case let .drag(from, to): await drag(from: from, to: to)
         case let .scroll(point, dx, dy): await scroll(at: point, dx: dx, dy: dy)
-        case let .keys(strokes): for stroke in strokes { await press(stroke) }
+        case let .keys(strokes):
+            view.window?.makeFirstResponder(view)
+            for stroke in strokes { await press(stroke) }
         }
     }
 
@@ -130,7 +134,9 @@ struct ViewInputInjector {
         let screenPoint = window.convertPoint(toScreen: view.convert(point, to: nil))
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
         cgEvent.location = CGPoint(x: screenPoint.x, y: primaryHeight - screenPoint.y)
-        if let event = NSEvent(cgEvent: cgEvent) { deliver(event) }
+        // El evento viene de un CGEvent sin ventana: se entrega siempre directo a la vista
+        // (window.sendEvent haría hit-test con coordenadas de pantalla).
+        if let event = NSEvent(cgEvent: cgEvent) { view.scrollWheel(with: event) }
         await pause()
     }
 }
