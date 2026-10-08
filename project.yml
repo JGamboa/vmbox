@@ -1,0 +1,69 @@
+name: VMBox
+options:
+  bundleIdPrefix: cl.multiapi
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+packages:
+  VMCore:
+    path: Packages/VMCore
+  swift-sdk:
+    url: https://github.com/modelcontextprotocol/swift-sdk.git
+    exactVersion: 0.12.1
+targets:
+  VMBox:
+    type: application
+    platform: macOS
+    sources:
+      - path: VMBox
+      - path: guest-agent/dist/GuestTools
+        type: folder
+        buildPhase: resources
+    entitlements:
+      path: VMBox/VMBox.entitlements
+      properties:
+        com.apple.security.virtualization: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cl.multiapi.vmbox
+        PRODUCT_NAME: VMBox
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: VMBox
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        ENABLE_APP_SANDBOX: NO
+    dependencies:
+      - package: VMCore
+        products: [VMCore, ControlProtocol, AgentControl]
+      - target: vmbox-mcp
+        embed: true
+        link: false
+        copy:
+          destination: executables
+  vmbox-mcp:
+    type: tool
+    platform: macOS
+    sources: [vmbox-mcp]
+    settings:
+      base:
+        PRODUCT_NAME: vmbox-mcp
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: VMCore
+        products: [MCPBridge, ControlProtocol]
+      - package: swift-sdk
+        products: [MCP]
+schemes:
+  VMBox:
+    build:
+      targets:
+        VMBox: all
+    run:
+      config: Debug
