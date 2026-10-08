@@ -47,12 +47,20 @@ public final class ControlService {
     struct KeyParams: Decodable { var vm: String; var combo: String }
     struct SnapshotParams: Decodable { var vm: String; var name: String }
     struct RestoreParams: Decodable { var vm: String; var name: String; var confirm: Bool? }
+    struct CommandParams: Decodable {
+        var command: String; var timeoutS: Double?; var asRoot: Bool?
+        enum CodingKeys: String, CodingKey { case command, timeoutS = "timeout_s", asRoot = "as_root" }
+    }
+    struct PathParams: Decodable { var path: String }
+    struct WriteParams: Decodable { var path: String; var content: String }
+    struct ClipboardParams: Decodable { var text: String }
 
     // MARK: Despacho
 
     /// Métodos que actúan sobre una VM (todos salvo list_vms). Las Fases 3 y 4 añaden los suyos.
-    static let vmMethods: Set<String> = ["start_vm", "stop_vm", "screenshot", "click", "drag", "scroll", "type_text", "key",
-                                         "snapshot_create", "snapshot_list", "snapshot_restore"]
+    static let guestMethods: Set<String> = ["run_command", "read_file", "write_file", "clipboard_get", "clipboard_set"]
+    static let vmMethods: Set<String> = Set(["start_vm", "stop_vm", "screenshot", "click", "drag", "scroll", "type_text", "key",
+                                             "snapshot_create", "snapshot_list", "snapshot_restore"]).union(guestMethods)
 
     func dispatch(_ request: ControlRequest) async throws -> JSONValue {
         if request.method == "list_vms" {
@@ -140,8 +148,43 @@ public final class ControlService {
             try await vm.restoreSnapshot(name: p.name)
             return ["restored": .string(p.name), "state": .string(vm.state.rawValue)]
 
+        case let method where Self.guestMethods.contains(method):
+            try requireRunning(vm)
+            var timeout = 30.0
+            switch method {
+            case "run_command":
+                let p = try params.decode(as: CommandParams.self)
+                guard !p.command.trimmingCharacters(in: .whitespaces).isEmpty else {
+                    throw ControlError(code: .invalidArgument, message: "Falta el parámetro «command»")
+                }
+                let seconds = p.timeoutS ?? 60
+                guard seconds > 0, seconds <= 3600 else {
+                    throw ControlError(code: .invalidArgument, message: "timeout_s debe estar entre 1 y 3600")
+                }
+                timeout = seconds + 10
+            case "read_file":
+                try Self.requireAbsolute(try params.decode(as: PathParams.self).path)
+            case "write_file":
+                try Self.requireAbsolute(try params.decode(as: WriteParams.self).path)
+            case "clipboard_set":
+                _ = try params.decode(as: ClipboardParams.self)
+            default:
+                break
+            }
+            var forwarded = request.params
+            forwarded.removeValue(forKey: "vm")
+            let result = try await vm.guestCall(method: method, params: forwarded, timeout: timeout)
+            onAgentActivity(vm.id)
+            return result
+
         default:
             throw ControlError(code: .invalidArgument, message: "Método desconocido: \(request.method)")
+        }
+    }
+
+    static func requireAbsolute(_ path: String) throws {
+        guard path.hasPrefix("/") else {
+            throw ControlError(code: .invalidArgument, message: "path debe ser absoluta: \(path)")
         }
     }
 

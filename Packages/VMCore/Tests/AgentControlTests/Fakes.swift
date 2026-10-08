@@ -18,6 +18,13 @@ final class FakeVM: VMControlling {
     var snapshots: [SnapshotInfo] = []
     var restored: [String] = []
     var snapshotError: (any Error)?
+    var guestCalls: [(method: String, params: [String: JSONValue], timeout: Double)] = []
+    var guestReply: JSONValue = ["ok": true]
+
+    func guestCall(method: String, params: [String: JSONValue], timeout: Double) async throws -> JSONValue {
+        guestCalls.append((method, params, timeout))
+        return guestReply
+    }
 
     init(name: String, state: VMState = .running, agentControlEnabled: Bool = true) {
         self.name = name

@@ -67,6 +67,23 @@ public enum ToolCatalog {
                  description: "Stop the VM and restore a snapshot, discarding current state. Requires confirm: true. Then call start_vm.",
                  properties: ["vm": vm, "name": string("Snapshot name"), "confirm": boolean("Must be true")],
                  required: ["vm", "name", "confirm"], timeout: fixed(120)),
+        ToolSpec(name: "run_command",
+                 description: "Run a shell command inside the VM via the guest agent. Returns stdout, stderr, exit_code, timed_out, truncated (outputs capped at 1 MB).",
+                 properties: ["vm": vm, "command": string("Shell command (/bin/sh -c)"),
+                              "timeout_s": number("Seconds before the command is killed (default 60, max 3600)"),
+                              "as_root": boolean("Run with sudo")],
+                 required: ["vm", "command"],
+                 timeout: { args in (args["timeout_s"]?.doubleValue ?? 60) + 15 }),
+        ToolSpec(name: "read_file", description: "Read a file inside the VM (absolute path, max 10 MB). Binary files come back base64 encoded.",
+                 properties: ["vm": vm, "path": string("Absolute path in the guest")], required: ["vm", "path"], timeout: fixed(40)),
+        ToolSpec(name: "write_file", description: "Write a file inside the VM (absolute path; the parent directory must exist).",
+                 properties: ["vm": vm, "path": string("Absolute path in the guest"), "content": string("File content"),
+                              "encoding": oneOf(["utf8", "base64"], "Content encoding (default utf8)")],
+                 required: ["vm", "path", "content"], timeout: fixed(40)),
+        ToolSpec(name: "clipboard_get", description: "Read the guest clipboard as text.",
+                 properties: ["vm": vm], required: ["vm"], timeout: fixed(40)),
+        ToolSpec(name: "clipboard_set", description: "Set the guest clipboard text (useful for non-ASCII text: then paste with key).",
+                 properties: ["vm": vm, "text": string("Text to copy")], required: ["vm", "text"], timeout: fixed(40)),
     ]
 
     public static var tools: [Tool] { specs.map(\.tool) }
