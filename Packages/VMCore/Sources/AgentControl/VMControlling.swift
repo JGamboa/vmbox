@@ -1,3 +1,4 @@
+import ControlProtocol
 import CoreGraphics
 import Foundation
 import VMCore
@@ -55,6 +56,8 @@ public protocol VMControlling: AnyObject {
     func listSnapshots() throws -> [SnapshotInfo]
     /// Detiene la VM y restaura el snapshot.
     func restoreSnapshot(name: String) async throws
+    /// Llama al guest-agent de la VM (la VM debe estar en ejecución).
+    func guestCall(method: String, params: [String: JSONValue], timeout: Double) async throws -> JSONValue
 }
 
 @MainActor

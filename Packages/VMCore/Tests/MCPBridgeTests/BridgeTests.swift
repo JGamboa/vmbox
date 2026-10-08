@@ -15,7 +15,8 @@ final class BridgeTests: XCTestCase {
     func testCatalogMatchesSpec() {
         XCTAssertEqual(ToolCatalog.specs.map(\.name),
                        ["list_vms", "start_vm", "stop_vm", "screenshot", "click", "drag", "scroll", "type_text", "key",
-                        "snapshot_create", "snapshot_list", "snapshot_restore"])
+                        "snapshot_create", "snapshot_list", "snapshot_restore",
+                        "run_command", "read_file", "write_file", "clipboard_get", "clipboard_set"])
         for spec in ToolCatalog.specs where spec.name != "list_vms" {
             XCTAssertTrue(spec.required.contains("vm"), spec.name)
             XCTAssertFalse(spec.description.isEmpty)
