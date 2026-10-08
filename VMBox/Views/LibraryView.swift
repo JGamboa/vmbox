@@ -9,6 +9,7 @@ struct LibraryView: View {
     @State private var selection: UUID?
     @State private var showingNewVM = false
     @State private var settingsTarget: VMRef?
+    @State private var snapshotsTarget: VMRef?
 
     var body: some View {
         Table(model.vms, selection: $selection) {
@@ -55,6 +56,10 @@ struct LibraryView: View {
                 if let id = selection { openWindow(value: id) }
             }
             .disabled(selection == nil)
+            Button("Snapshots", systemImage: "camera") {
+                if let id = selection { snapshotsTarget = VMRef(id: id) }
+            }
+            .disabled(selection == nil)
             Button("Configuración", systemImage: "slider.horizontal.3") {
                 if let id = selection { settingsTarget = VMRef(id: id) }
             }
@@ -62,6 +67,7 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $showingNewVM) { NewVMSheet() }
         .sheet(item: $settingsTarget) { ref in VMSettingsSheet(vmID: ref.id) }
+        .sheet(item: $snapshotsTarget) { ref in SnapshotsSheet(vmID: ref.id) }
         .modelAlert()
         .onAppear { model.openVMWindow = { openWindow(value: $0) } }
         .frame(minWidth: 640, minHeight: 320)

@@ -4,6 +4,7 @@ import VMCore
 struct VMToolbar: View {
     @Environment(AppModel.self) private var model
     let vm: VMInstance
+    @State private var showingSnapshots = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -24,6 +25,7 @@ struct VMToolbar: View {
             }
             .fixedSize()
             .disabled(vm.state != .running && vm.state != .paused)
+            Button("Snapshots", systemImage: "camera") { showingSnapshots = true }
             Toggle("Permitir control de agente", isOn: Binding(
                 get: { vm.config.agentControlEnabled },
                 set: { model.setAgentControl(vm.id, $0) }
@@ -37,5 +39,6 @@ struct VMToolbar: View {
         .labelStyle(.iconOnly)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+        .sheet(isPresented: $showingSnapshots) { SnapshotsSheet(vmID: vm.id) }
     }
 }
