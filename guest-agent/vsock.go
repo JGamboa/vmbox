@@ -25,12 +25,17 @@ func ListenVsock(port uint32, handle func(*os.File)) error {
 		return fmt.Errorf("listen vsock:%d: %w", port, err)
 	}
 	for {
-		conn, _, err := unix.Accept(fd)
+		conn, from, err := unix.Accept(fd)
 		if err == unix.EINTR {
 			continue
 		}
 		if err != nil {
 			return fmt.Errorf("accept: %w", err)
+		}
+		// Solo se atiende al anfitrión (VMADDR_CID_HOST); cualquier otro CID se descarta.
+		if peer, ok := from.(*unix.SockaddrVM); !ok || peer.CID != unix.VMADDR_CID_HOST {
+			unix.Close(conn)
+			continue
 		}
 		unix.CloseOnExec(conn)
 		go handle(os.NewFile(uintptr(conn), "vsock"))

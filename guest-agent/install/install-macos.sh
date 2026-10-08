@@ -12,9 +12,11 @@ install -m 0755 "$HERE/darwin-arm64/vmbox-guest-agent" /usr/local/bin/vmbox-gues
 install -m 0644 "$HERE/cl.multiapi.vmbox.guest-agent.plist" "$PLIST"
 
 # run_command con as_root usa «sudo -n»: sudo sin contraseña para este usuario (VM desechable).
-echo "$USER_NAME ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/vmbox-guest-agent
-chmod 0440 /etc/sudoers.d/vmbox-guest-agent
-visudo -cf /etc/sudoers.d/vmbox-guest-agent
+SUDOERS_TMP=$(mktemp)
+trap 'rm -f "$SUDOERS_TMP"' EXIT
+echo "$USER_NAME ALL=(ALL) NOPASSWD: ALL" > "$SUDOERS_TMP"
+visudo -cf "$SUDOERS_TMP"
+install -m 0440 -o root -g wheel "$SUDOERS_TMP" /etc/sudoers.d/vmbox-guest-agent
 
 USER_ID=$(id -u "$USER_NAME")
 launchctl bootout "gui/$USER_ID" "$PLIST" 2>/dev/null || true

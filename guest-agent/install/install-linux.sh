@@ -13,9 +13,11 @@ systemctl --global enable vmbox-guest-agent.service
 
 # run_command con as_root usa «sudo -n»: sudo sin contraseña para este usuario.
 # La VM es un entorno desechable para el agente; no instales esto en máquinas que no lo sean.
-echo "$USER_NAME ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/vmbox-guest-agent
-chmod 0440 /etc/sudoers.d/vmbox-guest-agent
-visudo -cf /etc/sudoers.d/vmbox-guest-agent
+SUDOERS_TMP=$(mktemp)
+trap 'rm -f "$SUDOERS_TMP"' EXIT
+echo "$USER_NAME ALL=(ALL) NOPASSWD: ALL" > "$SUDOERS_TMP"
+visudo -cf "$SUDOERS_TMP"
+install -m 0440 -o root -g root "$SUDOERS_TMP" /etc/sudoers.d/vmbox-guest-agent
 
 USER_ID=$(id -u "$USER_NAME")
 sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/$USER_ID" systemctl --user daemon-reload
