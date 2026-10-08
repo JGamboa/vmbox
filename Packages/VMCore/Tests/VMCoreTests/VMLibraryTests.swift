@@ -44,6 +44,16 @@ final class VMLibraryTests: XCTestCase {
         XCTAssertEqual(listing.broken.map(\.lastPathComponent), ["mala.vmbox"])
     }
 
+    func testDuplicateConfigIDIsListedOnceAndCopyReportedBroken() throws {
+        let bundle = try library.create(.defaults(for: .linux, name: "Ubuntu"))
+        let copy = library.root.appending(path: "Ubuntu copia.vmbox", directoryHint: .isDirectory)
+        try FileManager.default.copyItem(at: bundle.url, to: copy)
+        let listing = try library.list()
+        XCTAssertEqual(listing.entries.count, 1)
+        XCTAssertEqual(listing.entries.first?.config.name, "Ubuntu")
+        XCTAssertEqual(listing.broken.map(\.lastPathComponent), ["Ubuntu copia.vmbox"])
+    }
+
     /// Foco de revisión 5: nombres inválidos.
     func testRejectsInvalidNames() {
         for name in ["", "   ", "a/b", "a:b", ".oculta", String(repeating: "x", count: 65)] {

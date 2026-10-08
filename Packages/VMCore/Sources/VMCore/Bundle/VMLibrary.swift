@@ -37,7 +37,17 @@ public struct VMLibrary: Sendable {
                 broken.append(url)
             }
         }
-        entries.sort { $0.config.name.localizedStandardCompare($1.config.name) == .orderedAscending }
+        entries.sort {
+            let order = $0.config.name.localizedStandardCompare($1.config.name)
+            return order == .orderedSame ? $0.bundle.url.deletingPathExtension().path < $1.bundle.url.deletingPathExtension().path : order == .orderedAscending
+        }
+        // Un paquete copiado en Finder repite el id: se conserva el primero y los demás se informan como ilegibles.
+        var seen = Set<UUID>()
+        entries = entries.filter { entry in
+            if seen.insert(entry.config.id).inserted { return true }
+            broken.append(entry.bundle.url)
+            return false
+        }
         broken.sort { $0.lastPathComponent < $1.lastPathComponent }
         return VMLibraryListing(entries: entries, broken: broken)
     }

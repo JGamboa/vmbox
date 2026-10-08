@@ -39,7 +39,7 @@ final class AppModel {
     func reload() {
         do {
             let listing = try library.list()
-            let existing = Dictionary(uniqueKeysWithValues: vms.map { ($0.id, $0) })
+            let existing = Dictionary(vms.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             vms = listing.entries.map { entry in
                 if let instance = existing[entry.id] {
                     instance.diskUsageBytes = entry.diskUsageBytes
