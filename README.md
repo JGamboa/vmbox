@@ -28,3 +28,10 @@ open build/Build/Products/Debug/VMBox.app
 3. Herramientas: `list_vms`, `start_vm`, `stop_vm`, `screenshot`, `click`, `drag`, `scroll`, `type_text`, `key`.
    `type_text` usa distribución de teclado US: configura el invitado con teclado US.
 4. Prueba rápida sin Claude: `scripts/mcp_smoke.py <ruta a vmbox-mcp> <vm> list start screenshot:/tmp/a.png`.
+
+## Snapshots y carpetas compartidas
+- 📸 en la ventana de la VM (o «Snapshots» en la biblioteca). Con la VM encendida se guarda también la memoria;
+  al restaurar, la VM queda detenida y el siguiente inicio continúa desde el snapshot.
+- MCP: `snapshot_create`, `snapshot_list`, `snapshot_restore` (exige `confirm: true`).
+- Carpetas compartidas: Configuración de la VM ▸ Carpetas compartidas. En macOS aparecen en
+  `/Volumes/My Shared Files`; en Ubuntu: `sudo mount -t virtiofs vmbox /mnt/vmbox`.
