@@ -35,3 +35,15 @@ open build/Build/Products/Debug/VMBox.app
 - MCP: `snapshot_create`, `snapshot_list`, `snapshot_restore` (exige `confirm: true`).
 - Carpetas compartidas: Configuración de la VM ▸ Carpetas compartidas. En macOS aparecen en
   `/Volumes/My Shared Files`; en Ubuntu: `sudo mount -t virtiofs vmbox /mnt/vmbox`.
+
+## Guest agent (comandos, archivos, portapapeles)
+1. Configuración de la VM ▸ **Compartir el instalador con la VM** ▸ Guardar e iniciar la VM.
+2. En la terminal del invitado, ejecuta el comando que muestra la configuración (Ubuntu o macOS).
+   El instalador configura `sudo` sin contraseña para tu usuario (necesario para `as_root`): úsalo solo en VMs desechables.
+3. Herramientas MCP: `run_command`, `read_file`, `write_file`, `clipboard_get`, `clipboard_set`.
+   Si el agente no está instalado o no corre, devuelven `guest_agent_unavailable`.
+
+Compilar solo el guest-agent:
+```bash
+scripts/build-guest-agent.sh
+```
