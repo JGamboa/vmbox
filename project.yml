@@ -15,6 +15,9 @@ settings:
 packages:
   VMCore:
     path: Packages/VMCore
+  swift-sdk:
+    url: https://github.com/modelcontextprotocol/swift-sdk.git
+    exactVersion: 0.12.1
 targets:
   VMBox:
     type: application
@@ -55,6 +58,8 @@ targets:
     dependencies:
       - package: VMCore
         products: [MCPBridge, ControlProtocol]
+      - package: swift-sdk
+        products: [MCP]
 schemes:
   VMBox:
     build:

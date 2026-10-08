@@ -32,6 +32,7 @@ open build/Build/Products/Debug/VMBox.app
 ## Snapshots y carpetas compartidas
 - 📸 en la ventana de la VM (o «Snapshots» en la biblioteca). Con la VM encendida se guarda también la memoria;
   al restaurar, la VM queda detenida y el siguiente inicio continúa desde el snapshot.
+  La continuación desde memoria solo vale mientras VMBox siga abierto: tras reiniciar la app, la VM arranca en frío desde el disco restaurado.
 - MCP: `snapshot_create`, `snapshot_list`, `snapshot_restore` (exige `confirm: true`).
 - Carpetas compartidas: Configuración de la VM ▸ Carpetas compartidas. En macOS aparecen en
   `/Volumes/My Shared Files`; en Ubuntu: `sudo mount -t virtiofs vmbox /mnt/vmbox`.
