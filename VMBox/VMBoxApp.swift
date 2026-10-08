@@ -5,6 +5,9 @@ import VMCore
 struct VMBoxApp: App {
     @State private var model = AppModel()
 
+    /// El tamaño de ventana es el mismo para cualquier invitado (la resolución se calcula en puntos).
+    private var vmWindowPlan: DisplayPlan { AppModel.displayPlan(for: .linux) }
+
     var body: some Scene {
         Window("VMBox", id: "library") {
             LibraryView()
@@ -16,6 +19,7 @@ struct VMBoxApp: App {
                     .environment(model)
             }
         }
+        .defaultSize(width: vmWindowPlan.windowWidth, height: vmWindowPlan.windowHeight + 40)
         Settings {
             SettingsView()
                 .environment(model)
