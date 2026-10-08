@@ -16,5 +16,9 @@ struct VMBoxApp: App {
                     .environment(model)
             }
         }
+        Settings {
+            SettingsView()
+                .environment(model)
+        }
     }
 }

@@ -10,6 +10,15 @@ struct VMWindowView: View {
             VStack(spacing: 0) {
                 VMToolbar(vm: vm)
                 Divider()
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    if model.isAgentActive(vm.id, at: context.date) {
+                        Text("🤖 Agente controlando")
+                            .font(.callout.bold())
+                            .frame(maxWidth: .infinity)
+                            .padding(4)
+                            .background(.yellow.opacity(0.35))
+                    }
+                }
                 ZStack {
                     VMDisplayView(machine: vm.machine) { model.register(view: $0, for: vm.id) }
                     if vm.machine == nil {

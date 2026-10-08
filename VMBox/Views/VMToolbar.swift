@@ -24,6 +24,13 @@ struct VMToolbar: View {
             }
             .fixedSize()
             .disabled(vm.state != .running && vm.state != .paused)
+            Toggle("Permitir control de agente", isOn: Binding(
+                get: { vm.config.agentControlEnabled },
+                set: { model.setAgentControl(vm.id, $0) }
+            ))
+            .toggleStyle(.switch)
+            .labelStyle(.titleAndIcon)
+            .help("Permite que vmbox-mcp (p. ej. Claude Code) vea y controle esta VM")
             Spacer()
             Text(vm.state.displayName).foregroundStyle(.secondary)
         }

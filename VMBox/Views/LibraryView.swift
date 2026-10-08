@@ -18,6 +18,17 @@ struct LibraryView: View {
             TableColumn("Disco") { vm in
                 Text(ByteCountFormatter.string(fromByteCount: Int64(vm.diskUsageBytes), countStyle: .file))
             }
+            TableColumn("Agente") { vm in
+                TimelineView(.periodic(from: .now, by: 5)) { context in
+                    if model.isAgentActive(vm.id, at: context.date, within: 60) {
+                        Text("🤖 conectado")
+                    } else if vm.config.agentControlEnabled {
+                        Text("permitido").foregroundStyle(.secondary)
+                    } else {
+                        Text("—").foregroundStyle(.tertiary)
+                    }
+                }
+            }
         }
         .contextMenu(forSelectionType: UUID.self) { _ in } primaryAction: { ids in
             if let id = ids.first { openWindow(value: id) }
