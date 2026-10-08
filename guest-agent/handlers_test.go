@@ -159,3 +159,17 @@ func TestUnknownMethod(t *testing.T) {
 		t.Fatalf("se esperaba invalid_argument: %#v", err)
 	}
 }
+
+func TestRunCommandWithBackgroundChildReturnsOutput(t *testing.T) {
+	start := time.Now()
+	r, err := call(t, testHandler(), "run_command", map[string]any{"command": "sleep 30 & echo ok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r["stdout"] != "ok\n" || r["exit_code"] != 0 || r["timed_out"] != false {
+		t.Fatalf("resultado inesperado: %#v", r)
+	}
+	if time.Since(start) > 5*time.Second {
+		t.Fatalf("tardó demasiado: %v", time.Since(start))
+	}
+}

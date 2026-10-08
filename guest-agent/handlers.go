@@ -135,6 +135,11 @@ func (h *Handler) runCommand(command string, timeout time.Duration, asRoot bool)
 	case errors.As(err, &exitErr):
 		exitCode = exitErr.ExitCode()
 	case timedOut:
+	case errors.Is(err, exec.ErrWaitDelay):
+		// Un hijo en segundo plano retiene stdout/stderr: el comando terminó, la salida capturada es válida.
+		if cmd.ProcessState != nil {
+			exitCode = cmd.ProcessState.ExitCode()
+		}
 	default:
 		return nil, internalError("no se pudo ejecutar el comando: " + err.Error())
 	}

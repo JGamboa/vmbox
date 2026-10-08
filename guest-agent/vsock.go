@@ -15,6 +15,7 @@ func ListenVsock(port uint32, handle func(*os.File)) error {
 	if err != nil {
 		return fmt.Errorf("socket AF_VSOCK: %w", err)
 	}
+	unix.CloseOnExec(fd)
 	if err := unix.Bind(fd, &unix.SockaddrVM{CID: unix.VMADDR_CID_ANY, Port: port}); err != nil {
 		unix.Close(fd)
 		return fmt.Errorf("bind vsock:%d: %w", port, err)
@@ -31,6 +32,7 @@ func ListenVsock(port uint32, handle func(*os.File)) error {
 		if err != nil {
 			return fmt.Errorf("accept: %w", err)
 		}
+		unix.CloseOnExec(conn)
 		go handle(os.NewFile(uintptr(conn), "vsock"))
 	}
 }
