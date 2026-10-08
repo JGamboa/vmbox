@@ -36,6 +36,11 @@ final class AgentVMAdapter: VMControlling {
         }
     }
 
+    func guestCall(method: String, params: [String: JSONValue], timeout: Double) async throws -> JSONValue {
+        try await GuestAgentClient(connector: VsockGuestConnector(instance: instance))
+            .call(method: method, params: params, timeout: timeout)
+    }
+
     func viewMetrics() async throws -> ViewMetrics {
         let view = try await ensureView()
         return ViewMetrics(width: view.bounds.width, height: view.bounds.height,

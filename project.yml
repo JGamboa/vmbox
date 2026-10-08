@@ -19,7 +19,11 @@ targets:
   VMBox:
     type: application
     platform: macOS
-    sources: [VMBox]
+    sources:
+      - path: VMBox
+      - path: guest-agent/dist/GuestTools
+        type: folder
+        buildPhase: resources
     entitlements:
       path: VMBox/VMBox.entitlements
       properties:

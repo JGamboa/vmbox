@@ -11,6 +11,19 @@ struct VMSettingsSheet: View {
     @State private var folders: [SharedFolder] = []
     @State private var addingFolder = false
 
+    private var guestToolsPath: String? {
+        Bundle.main.url(forResource: "GuestTools", withExtension: nil)?.path
+    }
+
+    private func installCommand(for os: GuestOS) -> String {
+        switch os {
+        case .linux:
+            "sudo mkdir -p /mnt/vmbox && sudo mount -t virtiofs vmbox /mnt/vmbox && sudo /mnt/vmbox/GuestTools/install-linux.sh"
+        case .macOS:
+            "sudo \"/Volumes/My Shared Files/GuestTools/install-macos.sh\""
+        }
+    }
+
     var body: some View {
         if let vm = model.instance(for: vmID) {
             let editable = !vm.state.isActive
@@ -47,6 +60,22 @@ struct VMSettingsSheet: View {
                     }
                 }
                 .disabled(!editable)
+                if let toolsPath = guestToolsPath {
+                    Section("Guest agent (comandos, archivos, portapapeles)") {
+                        Toggle("Compartir el instalador con la VM", isOn: Binding(
+                            get: { folders.contains { $0.path == toolsPath } },
+                            set: { share in
+                                folders.removeAll { $0.path == toolsPath }
+                                if share { folders.append(SharedFolder(path: toolsPath, readOnly: true)) }
+                            }
+                        ))
+                        Text("Guarda, inicia la VM y ejecuta en su terminal:").font(.caption)
+                        Text(installCommand(for: vm.config.os))
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                    .disabled(!editable)
+                }
                 if !editable {
                     Text("Detén la VM para cambiar su configuración.").foregroundStyle(.secondary)
                 }
