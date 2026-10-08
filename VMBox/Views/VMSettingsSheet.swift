@@ -8,6 +8,8 @@ struct VMSettingsSheet: View {
     @State private var cpu = 4
     @State private var memoryGiB = 4
     @State private var ejectMedia = false
+    @State private var folders: [SharedFolder] = []
+    @State private var addingFolder = false
 
     var body: some View {
         if let vm = model.instance(for: vmID) {
@@ -15,7 +17,8 @@ struct VMSettingsSheet: View {
             Form {
                 Section("Recursos") {
                     Stepper("CPU: \(cpu)", value: $cpu, in: 1...ProcessInfo.processInfo.processorCount)
-                    Stepper("Memoria: \(memoryGiB) GB", value: $memoryGiB, in: 2...max(2, Int(ProcessInfo.processInfo.physicalMemory / .gib) - 2))
+                    Stepper("Memoria: \(memoryGiB) GB", value: $memoryGiB,
+                            in: 2...max(2, Int(ProcessInfo.processInfo.physicalMemory / .gib) - 2))
                 }
                 .disabled(!editable)
                 if vm.config.os == .linux, let media = vm.config.installMediaPath {
@@ -25,13 +28,37 @@ struct VMSettingsSheet: View {
                     }
                     .disabled(!editable)
                 }
+                Section("Carpetas compartidas") {
+                    ForEach($folders, id: \.path) { $folder in
+                        HStack {
+                            Text(folder.path).lineLimit(1).truncationMode(.middle)
+                            Spacer()
+                            Toggle("Solo lectura", isOn: $folder.readOnly).toggleStyle(.checkbox)
+                            Button("Quitar", systemImage: "minus.circle") {
+                                folders.removeAll { $0.path == folder.path }
+                            }
+                            .labelStyle(.iconOnly)
+                        }
+                    }
+                    Button("Añadir carpeta…") { addingFolder = true }
+                    if !folders.isEmpty {
+                        Text(SharedFolderNaming.guestHint(for: vm.config.os))
+                            .font(.caption).textSelection(.enabled)
+                    }
+                }
+                .disabled(!editable)
                 if !editable {
                     Text("Detén la VM para cambiar su configuración.").foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
-            .frame(width: 420)
+            .frame(width: 520)
             .modelAlert()
+            .fileImporter(isPresented: $addingFolder, allowedContentTypes: [.folder]) { result in
+                if case .success(let url) = result, !folders.contains(where: { $0.path == url.path }) {
+                    folders.append(SharedFolder(path: url.path))
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -40,6 +67,7 @@ struct VMSettingsSheet: View {
                             try vm.updateConfig { config in
                                 config.cpuCount = cpu
                                 config.memoryBytes = UInt64(memoryGiB) * .gib
+                                config.sharedFolders = folders
                                 if ejectMedia { config.installMediaPath = nil }
                             }
                             dismiss()
@@ -53,6 +81,7 @@ struct VMSettingsSheet: View {
             .onAppear {
                 cpu = vm.config.cpuCount
                 memoryGiB = Int(vm.config.memoryBytes / .gib)
+                folders = vm.config.sharedFolders
             }
         }
     }

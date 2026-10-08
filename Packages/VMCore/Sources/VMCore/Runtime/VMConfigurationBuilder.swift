@@ -5,12 +5,14 @@ public enum ConfigurationError: Error, Equatable, LocalizedError {
     case missingFile(String)
     case invalidPlatformData(String)
     case invalidMACAddress(String)
+    case sharedFolderMissing(String)
 
     public var errorDescription: String? {
         switch self {
         case .missingFile(let path): "Falta el archivo \(path)"
         case .invalidPlatformData(let path): "Datos de plataforma inválidos en \(path)"
         case .invalidMACAddress(let mac): "MAC inválida: \(mac)"
+        case .sharedFolderMissing(let path): "La carpeta compartida no existe: \(path)"
         }
     }
 }
@@ -42,7 +44,24 @@ public enum VMConfigurationBuilder {
         vz.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
         vz.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
         vz.socketDevices = [VZVirtioSocketDeviceConfiguration()]
+        vz.directorySharingDevices = try sharedFolderDevices(config)
         return vz
+    }
+
+    public static func sharedFolderDevices(_ config: VMConfig) throws -> [VZDirectorySharingDeviceConfiguration] {
+        guard !config.sharedFolders.isEmpty else { return [] }
+        var directories: [String: VZSharedDirectory] = [:]
+        for (folder, name) in zip(config.sharedFolders, SharedFolderNaming.shareNames(for: config.sharedFolders)) {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+                throw ConfigurationError.sharedFolderMissing(folder.path)
+            }
+            directories[name] = VZSharedDirectory(url: URL(filePath: folder.path, directoryHint: .isDirectory), readOnly: folder.readOnly)
+        }
+        let tag = config.os == .macOS ? VZVirtioFileSystemDeviceConfiguration.macOSGuestAutomountTag : SharedFolderNaming.linuxTag
+        let device = VZVirtioFileSystemDeviceConfiguration(tag: tag)
+        device.share = VZMultipleDirectoryShare(directories: directories)
+        return [device]
     }
 
     private static func configureLinux(_ vz: VZVirtualMachineConfiguration, config: VMConfig, bundle: VMBundle) throws {
