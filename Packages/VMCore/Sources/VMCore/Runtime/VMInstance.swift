@@ -71,19 +71,34 @@ public final class VMInstance: NSObject, Identifiable {
     }
 
     /// Pide al invitado que se apague; si no lo hace en `timeout`, fuerza (`force`) o lanza `stopTimedOut`.
+    /// Una VM pausada se reanuda antes de pedir el apagado (salvo con `force`).
     public func stop(force: Bool = false, timeout: Duration = .seconds(30)) async throws {
         guard let machine, state == .running || state == .paused else { return }
+        if state == .paused && !force {
+            try await machine.resume()
+            try stateMachine.apply(.resumeSucceeded)
+        }
         try stateMachine.apply(.stopRequested)
-        if machine.canRequestStop {
-            try machine.requestStop()
-            let deadline = ContinuousClock.now + timeout
-            while state == .stopping, ContinuousClock.now < deadline {
-                try await Task.sleep(for: .milliseconds(250))
+        do {
+            if machine.canRequestStop {
+                try machine.requestStop()
+                let deadline = ContinuousClock.now + timeout
+                while state == .stopping, ContinuousClock.now < deadline {
+                    try await Task.sleep(for: .milliseconds(250))
+                }
             }
+        } catch {
+            try? stateMachine.apply(.stopAbandoned)
+            throw error
         }
         guard state == .stopping else { return }
-        if force || !machine.canRequestStop {
-            try await machine.stop()
+        if force {
+            do {
+                try await machine.stop()
+            } catch {
+                didStop(error: error)
+                throw error
+            }
             didStop(error: nil)
         } else {
             try stateMachine.apply(.stopAbandoned)
@@ -104,10 +119,18 @@ public final class VMInstance: NSObject, Identifiable {
 extension VMInstance: VZVirtualMachineDelegate {
     // VZVirtualMachine se crea con la cola principal, así que los callbacks llegan en el hilo principal.
     nonisolated public func guestDidStop(_ virtualMachine: VZVirtualMachine) {
-        MainActor.assumeIsolated { didStop(error: nil) }
+        let source = ObjectIdentifier(virtualMachine)
+        MainActor.assumeIsolated {
+            guard machine.map(ObjectIdentifier.init) == source else { return }
+            didStop(error: nil)
+        }
     }
 
     nonisolated public func virtualMachine(_ virtualMachine: VZVirtualMachine, didStopWithError error: any Error) {
-        MainActor.assumeIsolated { didStop(error: error) }
+        let source = ObjectIdentifier(virtualMachine)
+        MainActor.assumeIsolated {
+            guard machine.map(ObjectIdentifier.init) == source else { return }
+            didStop(error: error)
+        }
     }
 }
