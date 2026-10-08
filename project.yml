@@ -1,0 +1,44 @@
+name: VMBox
+options:
+  bundleIdPrefix: cl.multiapi
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+packages:
+  VMCore:
+    path: Packages/VMCore
+targets:
+  VMBox:
+    type: application
+    platform: macOS
+    sources: [VMBox]
+    entitlements:
+      path: VMBox/VMBox.entitlements
+      properties:
+        com.apple.security.virtualization: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cl.multiapi.vmbox
+        PRODUCT_NAME: VMBox
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: VMBox
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        ENABLE_APP_SANDBOX: NO
+    dependencies:
+      - package: VMCore
+        products: [VMCore]
+schemes:
+  VMBox:
+    build:
+      targets:
+        VMBox: all
+    run:
+      config: Debug
