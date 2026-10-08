@@ -122,4 +122,32 @@ final class DownloaderTests: XCTestCase {
         _ = try await makeDownloader().download(.init(url: url, destination: destination, expectedSHA256: sha))
         XCTAssertEqual(StubURLProtocol.requests.count, 0)
     }
+
+    func testRangeNotSatisfiableWithMatchingTotalCompletes() async throws {
+        try body.write(to: Downloader.partialURL(for: destination))
+        StubURLProtocol.handler = { _ in .init(status: 416, headers: ["Content-Range": "bytes */\(self.body.count)"]) }
+        let result = try await makeDownloader().download(.init(url: url, destination: destination, expectedSHA256: nil))
+        XCTAssertEqual(try Data(contentsOf: result), body)
+        XCTAssertEqual(StubURLProtocol.requests.count, 1)
+    }
+
+    func testRangeNotSatisfiableWithMismatchedTotalRestarts() async throws {
+        try Data("parcial viejo y demasiado largo para el cuerpo".utf8).write(to: Downloader.partialURL(for: destination))
+        StubURLProtocol.handler = { request in
+            request.value(forHTTPHeaderField: "Range") != nil
+                ? .init(status: 416, headers: ["Content-Range": "bytes */\(self.body.count)"])
+                : .init(body: self.body)
+        }
+        let result = try await makeDownloader().download(.init(url: url, destination: destination, expectedSHA256: nil))
+        XCTAssertEqual(try Data(contentsOf: result), body)
+    }
+
+    func testRangeNotSatisfiableWithoutHeaderRestarts() async throws {
+        try Data("basura".utf8).write(to: Downloader.partialURL(for: destination))
+        StubURLProtocol.handler = { request in
+            request.value(forHTTPHeaderField: "Range") != nil ? .init(status: 416) : .init(body: self.body)
+        }
+        let result = try await makeDownloader().download(.init(url: url, destination: destination, expectedSHA256: nil))
+        XCTAssertEqual(try Data(contentsOf: result), body)
+    }
 }

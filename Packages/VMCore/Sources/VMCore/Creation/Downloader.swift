@@ -108,7 +108,13 @@ public final class Downloader: Sendable {
             written = 0
             try handle.truncate(atOffset: 0)
         case 416:
-            return // el parcial ya está completo; lo valida el SHA256
+            // Solo es "completo" si Content-Range (`bytes */N`) coincide con el tamaño del parcial.
+            let header = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Range")
+            if let header, header.hasPrefix("bytes */"), let total = Int64(header.dropFirst("bytes */".count)), total == existing {
+                return
+            }
+            try handle.truncate(atOffset: 0)
+            throw URLError(.networkConnectionLost)
         default:
             throw DownloadError.httpStatus(status)
         }
