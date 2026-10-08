@@ -54,8 +54,8 @@ final class FakeVM: VMControlling {
     func perform(_ action: InputAction) async throws { performed.append(action) }
 
     func capture() async throws -> CapturedFrame {
-        let width = Int(metrics.width * metrics.backingScale)
-        let height = Int(metrics.height * metrics.backingScale)
+        let width = max(1, Int(metrics.width * metrics.backingScale))
+        let height = max(1, Int(metrics.height * metrics.backingScale))
         let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
                             space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         return CapturedFrame(image: ctx.makeImage()!, metrics: metrics)

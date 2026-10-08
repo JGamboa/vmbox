@@ -1,3 +1,5 @@
+import Foundation
+
 public enum VMState: String, Codable, Sendable {
     case stopped, starting, running, paused, stopping, error
 
@@ -19,8 +21,15 @@ public enum VMStateEvent: Equatable, Sendable {
     case startRequested, startSucceeded, pauseSucceeded, resumeSucceeded, stopRequested, stopAbandoned
 }
 
-public enum VMStateError: Error, Equatable {
+public enum VMStateError: Error, Equatable, LocalizedError {
     case invalidTransition(from: VMState, event: VMStateEvent)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidTransition(let state, event: _):
+            return "Operación no válida: la VM está «\(state.displayName)»"
+        }
+    }
 }
 
 public struct VMStateMachine: Equatable, Sendable {

@@ -81,7 +81,7 @@ final class BridgeTests: XCTestCase {
         _ = await bridge.handle(params("start_vm", ["vm": "u"]))
         _ = await bridge.handle(params("type_text", ["vm": "u", "text": .string(String(repeating: "a", count: 1000))]))
         let timeouts = await fake.calls.map(\.timeout)
-        XCTAssertEqual(timeouts, [120, 80])
+        XCTAssertEqual(timeouts, [120, 130])
     }
 
     /// Protocolo de punta a punta: cliente MCP ↔ vmbox-mcp (Bridge) ↔ socket simulado.

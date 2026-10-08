@@ -92,6 +92,7 @@ public final class ControlService {
         case "screenshot":
             try requireRunning(vm)
             let frame = try await vm.capture()
+            try requireSize(frame.metrics)
             let geometry = CoordinateMapper.geometry(
                 sourcePixelWidth: frame.image.width, sourcePixelHeight: frame.image.height,
                 viewWidth: frame.metrics.width, viewHeight: frame.metrics.height)
@@ -159,7 +160,7 @@ public final class ControlService {
                 }
                 let seconds = p.timeoutS ?? 60
                 guard seconds > 0, seconds <= 3600 else {
-                    throw ControlError(code: .invalidArgument, message: "timeout_s debe estar entre 1 y 3600")
+                    throw ControlError(code: .invalidArgument, message: "timeout_s debe ser mayor que 0 y como máximo 3600")
                 }
                 timeout = seconds + 10
             case "read_file":
@@ -213,9 +214,16 @@ public final class ControlService {
         }
     }
 
+    func requireSize(_ metrics: ViewMetrics) throws {
+        guard metrics.width > 0, metrics.height > 0 else {
+            throw ControlError(code: .internalError, message: "La vista de la VM aún no tiene tamaño")
+        }
+    }
+
     /// Usa el espacio de la última captura (o el que tendría una captura ahora) y el tamaño actual de la vista.
     func viewPoint(_ vm: any VMControlling, _ x: Double, _ y: Double) async throws -> CGPoint {
         let metrics = try await vm.viewMetrics()
+        try requireSize(metrics)
         let shot = lastGeometry[vm.id] ?? CoordinateMapper.geometry(
             sourcePixelWidth: Int(metrics.width * metrics.backingScale), sourcePixelHeight: Int(metrics.height * metrics.backingScale),
             viewWidth: metrics.width, viewHeight: metrics.height)

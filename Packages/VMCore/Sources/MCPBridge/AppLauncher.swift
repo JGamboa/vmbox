@@ -21,6 +21,7 @@ public struct AppLauncher: AppLaunching {
     }
 
     public func ensureRunning() async throws {
+        if canConnect(socketPath) { return }
         try open(appBundle.map { [$0.path] } ?? ["-a", "VMBox"])
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {

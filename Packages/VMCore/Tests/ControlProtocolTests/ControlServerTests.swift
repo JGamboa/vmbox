@@ -21,6 +21,16 @@ final class ControlServerTests: XCTestCase {
         XCTAssertEqual(result, ["echo": "list_vms"])
     }
 
+    func testUnencodableResponseBecomesInternalError() async throws {
+        try startServer { request in .success(id: request.id, result: ["bad": .number(.nan)]) }
+        do {
+            _ = try await ControlClient(path: path).call(method: "x", params: [:], timeout: 5)
+            XCTFail("debió lanzar")
+        } catch let error as ControlError {
+            XCTAssertEqual(error.code, .internalError)
+        }
+    }
+
     func testErrorPropagatesAsControlError() async throws {
         try startServer { request in .failure(id: request.id, error: ControlError(code: .vmNotRunning, message: "apagada")) }
         do {

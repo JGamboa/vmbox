@@ -55,7 +55,7 @@ public enum ToolCatalog {
         ToolSpec(name: "type_text",
                  description: "Type text with a US keyboard layout. Supports printable ASCII, \\n and \\t; other characters are rejected.",
                  properties: ["vm": vm, "text": string("Text to type")], required: ["vm", "text"],
-                 timeout: { args in 30 + Double(args["text"]?.stringValue?.count ?? 0) * 0.05 }),
+                 timeout: { args in 30 + Double(args["text"]?.stringValue?.count ?? 0) * 0.1 }),
         ToolSpec(name: "key", description: "Press a key combination, e.g. cmd+space, ctrl+c, ctrl+alt+t, return, shift+tab, super, f5.",
                  properties: ["vm": vm, "combo": string("Modifiers and key joined by +")], required: ["vm", "combo"], timeout: fixed(30)),
         ToolSpec(name: "snapshot_create",

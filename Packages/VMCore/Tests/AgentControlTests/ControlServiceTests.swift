@@ -87,6 +87,15 @@ final class ControlServiceTests: XCTestCase {
         XCTAssertEqual(Array(png.prefix(4)), [0x89, 0x50, 0x4E, 0x47])
     }
 
+    func testZeroSizedViewIsInternalError() async throws {
+        ubuntu.metrics = ViewMetrics(width: 0, height: 0, backingScale: 2, isFlipped: false)
+        let shot = await failure("screenshot", ["vm": "Ubuntu"])
+        let click = await failure("click", ["vm": "Ubuntu", "x": 1, "y": 1])
+        XCTAssertEqual(shot, .internalError)
+        XCTAssertEqual(click, .internalError)
+        XCTAssertTrue(ubuntu.performed.isEmpty)
+    }
+
     func testClickMapsCoordinatesAndReportsActivity() async throws {
         _ = try await ok("screenshot", ["vm": "Ubuntu"])
         _ = try await ok("click", ["vm": "Ubuntu", "x": 100, "y": 50, "button": "right", "count": 2])

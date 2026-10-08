@@ -56,7 +56,12 @@ public final class ControlServer: @unchecked Sendable {
             } else {
                 response = .failure(id: 0, error: ControlError(code: .invalidArgument, message: "Mensaje JSON-RPC inválido"))
             }
-            guard let data = try? encoder.encode(response), (try? channel.writeLine(data)) != nil else { return }
+            var encoded = try? encoder.encode(response)
+            if encoded == nil {
+                let failure = ControlResponse.failure(id: response.id, error: ControlError(code: .internalError, message: "No se pudo serializar la respuesta"))
+                encoded = try? encoder.encode(failure)
+            }
+            guard let data = encoded, (try? channel.writeLine(data)) != nil else { return }
         }
     }
 }

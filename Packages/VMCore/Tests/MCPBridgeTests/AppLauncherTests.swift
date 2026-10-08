@@ -28,10 +28,18 @@ final class AppLauncherTests: XCTestCase {
         XCTAssertEqual(recorder.calls, [["/Applications/VMBox.app"]])
     }
 
-    func testFallsBackToOpenDashA() async throws {
+    func testSkipsOpenWhenSocketAlreadyAnswers() async throws {
         let recorder = Recorder()
         let launcher = AppLauncher(socketPath: "/tmp/x.sock", appBundle: nil, timeout: .seconds(1),
                                    open: { recorder.add($0) }, canConnect: { _ in true })
+        try await launcher.ensureRunning()
+        XCTAssertTrue(recorder.calls.isEmpty)
+    }
+
+    func testFallsBackToOpenDashA() async throws {
+        let recorder = Recorder()
+        let launcher = AppLauncher(socketPath: "/tmp/x.sock", appBundle: nil, timeout: .seconds(1),
+                                   open: { recorder.add($0) }, canConnect: { _ in recorder.nextProbe() >= 2 })
         try await launcher.ensureRunning()
         XCTAssertEqual(recorder.calls, [["-a", "VMBox"]])
     }
