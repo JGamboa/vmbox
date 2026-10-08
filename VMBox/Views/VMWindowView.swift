@@ -22,6 +22,7 @@ struct VMWindowView: View {
             }
             .frame(minWidth: 800, minHeight: 520)
             .navigationTitle(vm.config.name)
+            .modelAlert()
         } else {
             Text("La VM ya no existe.").padding()
         }

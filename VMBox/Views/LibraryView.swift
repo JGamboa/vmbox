@@ -51,12 +51,7 @@ struct LibraryView: View {
         }
         .sheet(isPresented: $showingNewVM) { NewVMSheet() }
         .sheet(item: $settingsTarget) { ref in VMSettingsSheet(vmID: ref.id) }
-        .alert("VMBox", isPresented: Binding(get: { model.alertMessage != nil },
-                                             set: { if !$0 { model.alertMessage = nil } })) {
-            Button("OK") {}
-        } message: {
-            Text(model.alertMessage ?? "")
-        }
+        .modelAlert()
         .onAppear { model.openVMWindow = { openWindow(value: $0) } }
         .frame(minWidth: 640, minHeight: 320)
     }
