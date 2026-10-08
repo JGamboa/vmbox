@@ -8,6 +8,7 @@ public enum ControlErrorCode: String, Codable, Sendable {
     case appUnavailable = "app_unavailable"
     case invalidArgument = "invalid_argument"
     case internalError = "internal_error"
+    case guestAgentUnavailable = "guest_agent_unavailable"
 }
 
 public struct ControlError: Error, Codable, Equatable, Sendable, LocalizedError {
