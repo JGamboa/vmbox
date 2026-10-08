@@ -15,6 +15,9 @@ final class FakeVM: VMControlling {
     var performed: [InputAction] = []
     var startCount = 0
     var stopForces: [Bool] = []
+    var snapshots: [SnapshotInfo] = []
+    var restored: [String] = []
+    var snapshotError: (any Error)?
 
     init(name: String, state: VMState = .running, agentControlEnabled: Bool = true) {
         self.name = name
@@ -25,6 +28,22 @@ final class FakeVM: VMControlling {
     func start() async throws { startCount += 1; state = .running }
     func stop(force: Bool) async throws { stopForces.append(force); state = .stopped }
     func viewMetrics() async throws -> ViewMetrics { metrics }
+
+    func createSnapshot(name: String) async throws -> SnapshotInfo {
+        if let snapshotError { throw snapshotError }
+        let info = SnapshotInfo(name: name, createdAt: Date(timeIntervalSince1970: 0), includesMemory: state == .running)
+        snapshots.append(info)
+        return info
+    }
+
+    func listSnapshots() throws -> [SnapshotInfo] { snapshots }
+
+    func restoreSnapshot(name: String) async throws {
+        if let snapshotError { throw snapshotError }
+        guard snapshots.contains(where: { $0.name == name }) else { throw SnapshotError.notFound(name) }
+        restored.append(name)
+        state = .stopped
+    }
     func perform(_ action: InputAction) async throws { performed.append(action) }
 
     func capture() async throws -> CapturedFrame {

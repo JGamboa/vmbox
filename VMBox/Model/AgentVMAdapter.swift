@@ -55,6 +55,18 @@ final class AgentVMAdapter: VMControlling {
         await ViewInputInjector(view: view).perform(action)
     }
 
+    func createSnapshot(name: String) async throws -> SnapshotInfo {
+        try await instance.createSnapshot(named: name)
+    }
+
+    func listSnapshots() throws -> [SnapshotInfo] {
+        try instance.snapshots.list()
+    }
+
+    func restoreSnapshot(name: String) async throws {
+        try await instance.restoreSnapshot(named: name)
+    }
+
     /// La VM solo se controla con ventana: si no existe, se abre y se espera la vista (hasta 4 s).
     private func ensureView() async throws -> VZVirtualMachineView {
         if let view = model.view(for: id), view.window != nil { return view }

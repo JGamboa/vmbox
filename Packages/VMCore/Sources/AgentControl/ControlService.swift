@@ -45,11 +45,14 @@ public final class ControlService {
     struct ScrollParams: Decodable { var vm: String; var x: Double; var y: Double; var dx: Double; var dy: Double }
     struct TextParams: Decodable { var vm: String; var text: String }
     struct KeyParams: Decodable { var vm: String; var combo: String }
+    struct SnapshotParams: Decodable { var vm: String; var name: String }
+    struct RestoreParams: Decodable { var vm: String; var name: String; var confirm: Bool? }
 
     // MARK: Despacho
 
     /// Métodos que actúan sobre una VM (todos salvo list_vms). Las Fases 3 y 4 añaden los suyos.
-    static let vmMethods: Set<String> = ["start_vm", "stop_vm", "screenshot", "click", "drag", "scroll", "type_text", "key"]
+    static let vmMethods: Set<String> = ["start_vm", "stop_vm", "screenshot", "click", "drag", "scroll", "type_text", "key",
+                                         "snapshot_create", "snapshot_list", "snapshot_restore"]
 
     func dispatch(_ request: ControlRequest) async throws -> JSONValue {
         if request.method == "list_vms" {
@@ -121,6 +124,22 @@ public final class ControlService {
             let p = try params.decode(as: KeyParams.self)
             return try await act(vm, .keys([try KeyMap.stroke(forCombo: p.combo)]))
 
+        case "snapshot_create":
+            let p = try params.decode(as: SnapshotParams.self)
+            return Self.snapshotJSON(try await vm.createSnapshot(name: p.name))
+
+        case "snapshot_list":
+            return ["snapshots": .array(try vm.listSnapshots().map(Self.snapshotJSON))]
+
+        case "snapshot_restore":
+            let p = try params.decode(as: RestoreParams.self)
+            guard p.confirm == true else {
+                throw ControlError(code: .invalidArgument,
+                                   message: "snapshot_restore exige confirm: true (detiene la VM y descarta su estado actual)")
+            }
+            try await vm.restoreSnapshot(name: p.name)
+            return ["restored": .string(p.name), "state": .string(vm.state.rawValue)]
+
         default:
             throw ControlError(code: .invalidArgument, message: "Método desconocido: \(request.method)")
         }
@@ -168,12 +187,22 @@ public final class ControlService {
         return ["ok": true]
     }
 
+    static func snapshotJSON(_ info: SnapshotInfo) -> JSONValue {
+        let formatter = ISO8601DateFormatter()
+        return ["name": .string(info.name), "created_at": .string(formatter.string(from: info.createdAt)),
+                "includes_memory": .bool(info.includesMemory)]
+    }
+
     static func controlError(from error: any Error) -> ControlError {
         switch error {
         case let error as ControlError: error
         case let error as CoordinateError: ControlError(code: .invalidArgument, message: error.description)
         case let error as KeyMapError: ControlError(code: .invalidArgument, message: error.description)
         case let error as DecodingError: ControlError(code: .invalidArgument, message: describe(error))
+        case let error as SnapshotError: ControlError(code: .invalidArgument, message: error.localizedDescription)
+        case VMInstanceError.busy, VMInstanceError.invalidStateForSnapshot:
+            ControlError(code: .invalidArgument, message: error.localizedDescription)
+        case let error as DiskSpaceError: ControlError(code: .internalError, message: error.localizedDescription)
         default: ControlError(code: .internalError, message: error.localizedDescription)
         }
     }

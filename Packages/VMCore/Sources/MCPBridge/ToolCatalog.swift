@@ -58,6 +58,15 @@ public enum ToolCatalog {
                  timeout: { args in 30 + Double(args["text"]?.stringValue?.count ?? 0) * 0.05 }),
         ToolSpec(name: "key", description: "Press a key combination, e.g. cmd+space, ctrl+c, ctrl+alt+t, return, shift+tab, super, f5.",
                  properties: ["vm": vm, "combo": string("Modifiers and key joined by +")], required: ["vm", "combo"], timeout: fixed(30)),
+        ToolSpec(name: "snapshot_create",
+                 description: "Snapshot the VM disk (and memory if it is running). Works with the VM stopped or running.",
+                 properties: ["vm": vm, "name": string("Snapshot name")], required: ["vm", "name"], timeout: fixed(300)),
+        ToolSpec(name: "snapshot_list", description: "List snapshots with creation date and whether they include memory state.",
+                 properties: ["vm": vm], required: ["vm"], timeout: fixed(30)),
+        ToolSpec(name: "snapshot_restore",
+                 description: "Stop the VM and restore a snapshot, discarding current state. Requires confirm: true. Then call start_vm.",
+                 properties: ["vm": vm, "name": string("Snapshot name"), "confirm": boolean("Must be true")],
+                 required: ["vm", "name", "confirm"], timeout: fixed(120)),
     ]
 
     public static var tools: [Tool] { specs.map(\.tool) }

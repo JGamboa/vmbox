@@ -51,6 +51,10 @@ public protocol VMControlling: AnyObject {
     func viewMetrics() async throws -> ViewMetrics
     func capture() async throws -> CapturedFrame
     func perform(_ action: InputAction) async throws
+    func createSnapshot(name: String) async throws -> SnapshotInfo
+    func listSnapshots() throws -> [SnapshotInfo]
+    /// Detiene la VM y restaura el snapshot.
+    func restoreSnapshot(name: String) async throws
 }
 
 @MainActor

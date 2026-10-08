@@ -12,13 +12,15 @@ final class BridgeTests: XCTestCase {
         result.content.compactMap { if case .text(let text, _, _) = $0 { text } else { nil } }.joined()
     }
 
-    func testCatalogMatchesSpecPhase2() {
+    func testCatalogMatchesSpec() {
         XCTAssertEqual(ToolCatalog.specs.map(\.name),
-                       ["list_vms", "start_vm", "stop_vm", "screenshot", "click", "drag", "scroll", "type_text", "key"])
+                       ["list_vms", "start_vm", "stop_vm", "screenshot", "click", "drag", "scroll", "type_text", "key",
+                        "snapshot_create", "snapshot_list", "snapshot_restore"])
         for spec in ToolCatalog.specs where spec.name != "list_vms" {
             XCTAssertTrue(spec.required.contains("vm"), spec.name)
             XCTAssertFalse(spec.description.isEmpty)
         }
+        XCTAssertTrue(ToolCatalog.spec(named: "snapshot_restore")!.required.contains("confirm"))
     }
 
     func testScreenshotBecomesImagePlusText() async {
