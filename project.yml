@@ -12,6 +12,7 @@ settings:
     CODE_SIGN_STYLE: Manual
     DEVELOPMENT_TEAM: ""
     ENABLE_HARDENED_RUNTIME: NO
+    ARCHS: arm64
 packages:
   VMCore:
     path: Packages/VMCore
