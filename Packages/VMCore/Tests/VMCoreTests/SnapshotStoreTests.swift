@@ -86,4 +86,28 @@ final class SnapshotStoreTests: XCTestCase {
         try store.delete("viejo")
         XCTAssertEqual(try store.list().map(\.name), ["nuevo"])
     }
+
+    func testTraversalAndUntrimmedNamesAreRejected() async throws {
+        _ = try await store.create(name: "a", includesMemory: false)
+        XCTAssertThrowsError(try store.info("../x")) { XCTAssertEqual($0 as? SnapshotError, .invalidName("../x")) }
+        XCTAssertThrowsError(try store.delete("../..")) { XCTAssertEqual($0 as? SnapshotError, .invalidName("../..")) }
+        XCTAssertThrowsError(try store.restoreFiles("a/../a")) { XCTAssertEqual($0 as? SnapshotError, .invalidName("a/../a")) }
+        XCTAssertThrowsError(try store.info(" a")) { XCTAssertEqual($0 as? SnapshotError, .invalidName(" a")) }
+        XCTAssertThrowsError(try store.memoryStateURL(for: "../x")) { XCTAssertEqual($0 as? SnapshotError, .invalidName("../x")) }
+        XCTAssertEqual(try store.list().map(\.name), ["a"], "ningún nombre inválido borra ni toca snapshots")
+    }
+
+    func testDeleteOfTraversalNameLeavesSiblingIntact() async throws {
+        // Otro bundle hermano con un snapshot real que un nombre malicioso intentaría borrar.
+        let sibling = bundle.url.deletingLastPathComponent()
+            .appending(path: "Otro.vmbox/snapshots/x", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: sibling, withIntermediateDirectories: true)
+        let marker = sibling.appending(path: "info.json")
+        try Data("{}".utf8).write(to: marker)
+
+        XCTAssertThrowsError(try store.delete("../../Otro.vmbox/snapshots/x")) {
+            XCTAssertEqual($0 as? SnapshotError, .invalidName("../../Otro.vmbox/snapshots/x"))
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: marker.path), "el snapshot hermano sigue intacto")
+    }
 }

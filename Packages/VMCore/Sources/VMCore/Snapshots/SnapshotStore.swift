@@ -45,8 +45,19 @@ public struct SnapshotStore: Sendable {
         bundle.snapshotsURL.appending(path: name, directoryHint: .isDirectory)
     }
 
-    public func memoryStateURL(for name: String) -> URL {
-        directory(for: name).appending(path: Self.stateFile)
+    public func memoryStateURL(for name: String) throws -> URL {
+        try resolve(name).appending(path: Self.stateFile)
+    }
+
+    /// Valida el nombre (sin recortar, sin «/», «:» ni «.» inicial) y comprueba que la ruta
+    /// quede directamente dentro de `snapshots/`. Evita que nombres de agentes escapen del bundle.
+    private func resolve(_ name: String) throws -> URL {
+        guard (try? VMName.validate(name)) == name else { throw SnapshotError.invalidName(name) }
+        let dir = directory(for: name)
+        guard dir.deletingLastPathComponent().standardizedFileURL == bundle.snapshotsURL.standardizedFileURL else {
+            throw SnapshotError.invalidName(name)
+        }
+        return dir
     }
 
     public func list() throws -> [SnapshotInfo] {
@@ -57,13 +68,15 @@ public struct SnapshotStore: Sendable {
     }
 
     public func info(_ name: String) throws -> SnapshotInfo {
-        let url = directory(for: name).appending(path: Self.infoFile)
+        let url = try resolve(name).appending(path: Self.infoFile)
         guard let data = try? Data(contentsOf: url) else { throw SnapshotError.notFound(name) }
         return try Self.decoder.decode(SnapshotInfo.self, from: data)
     }
 
     /// Crea el snapshot. Si `includesMemory`, `saveState` debe escribir el estado en la URL recibida
     /// (con la VM pausada). Ante cualquier error, el directorio del snapshot se borra.
+    /// Con `includesMemory`, el llamador debe mantener la VM pausada hasta que `create` regrese,
+    /// porque los archivos de disco se clonan después de `saveState`.
     public func create(name rawName: String, includesMemory: Bool, date: Date = .now,
                        saveState: @MainActor (URL) async throws -> Void = { _ in }) async throws -> SnapshotInfo {
         guard let name = try? VMName.validate(rawName) else { throw SnapshotError.invalidName(rawName) }
@@ -91,7 +104,7 @@ public struct SnapshotStore: Sendable {
     /// Cada archivo se clona a un temporal y se renombra encima del original (atómico).
     public func restoreFiles(_ name: String) throws {
         _ = try info(name)
-        let dir = directory(for: name)
+        let dir = try resolve(name)
         for file in Self.clonedFiles where FileManager.default.fileExists(atPath: dir.appending(path: file).path) {
             let target = bundle.url.appending(path: file)
             let temporary = bundle.url.appending(path: file + ".restoring")
@@ -103,7 +116,7 @@ public struct SnapshotStore: Sendable {
 
     public func delete(_ name: String) throws {
         _ = try info(name)
-        try FileManager.default.removeItem(at: directory(for: name))
+        try FileManager.default.removeItem(at: try resolve(name))
     }
 
     static func clone(_ source: URL, to destination: URL) throws {
