@@ -11,7 +11,7 @@ struct VMWindowView: View {
                 VMToolbar(vm: vm)
                 Divider()
                 ZStack {
-                    VMDisplayView(machine: vm.machine)
+                    VMDisplayView(machine: vm.machine) { model.register(view: $0, for: vm.id) }
                     if vm.machine == nil {
                         VStack(spacing: 8) {
                             Text(vm.state == .error ? "Error" : "VM detenida").font(.title2)

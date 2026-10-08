@@ -1,5 +1,7 @@
+import AgentControl
 import Foundation
 import Observation
+import Virtualization
 import VMCore
 
 enum AppError: Error, LocalizedError {
@@ -27,12 +29,23 @@ final class AppModel {
     var alertMessage: String?
     /// La escena lo instala para abrir ventanas de VM desde código que no es vista (p. ej. el agente).
     var openVMWindow: ((UUID) -> Void)?
+    let mcpLog = MCPLog(fileURL: VMBoxPaths.mcpLog)
+    private(set) var agentActivity: [UUID: Date] = [:]
+    @ObservationIgnored private var views: [UUID: WeakView] = [:]
+    @ObservationIgnored private var controlHost: ControlHost?
 
     init() {
         let root = UserDefaults.standard.string(forKey: Self.libraryPathKey)
             .map { URL(filePath: $0, directoryHint: .isDirectory) } ?? VMLibrary.defaultRoot
         library = VMLibrary(root: root)
         reload()
+        let host = ControlHost(model: self)
+        do {
+            try host.start()
+        } catch {
+            alertMessage = "El control de agentes no está disponible: \(error.localizedDescription)"
+        }
+        controlHost = host
     }
 
     /// Relee la biblioteca conservando las instancias existentes (y sus VMs en ejecución).
@@ -50,6 +63,25 @@ final class AppModel {
             brokenBundles = listing.broken
         } catch {
             alertMessage = "No se pudo leer la biblioteca: \(error.localizedDescription)"
+        }
+    }
+
+    func register(view: VZVirtualMachineView, for id: UUID) { views[id] = WeakView(view) }
+
+    func view(for id: UUID) -> VZVirtualMachineView? { views[id]?.view }
+
+    func noteAgentActivity(_ id: UUID) { agentActivity[id] = .now }
+
+    func isAgentActive(_ id: UUID, at date: Date = .now, within seconds: TimeInterval = 3) -> Bool {
+        guard let last = agentActivity[id] else { return false }
+        return date.timeIntervalSince(last) < seconds
+    }
+
+    func setAgentControl(_ id: UUID, _ enabled: Bool) {
+        do {
+            try instance(for: id)?.updateConfig { $0.agentControlEnabled = enabled }
+        } catch {
+            alertMessage = error.localizedDescription
         }
     }
 
@@ -99,4 +131,13 @@ final class AppModel {
         }
         return name
     }
+}
+
+final class WeakView {
+    weak var view: VZVirtualMachineView?
+    init(_ view: VZVirtualMachineView) { self.view = view }
+}
+
+extension AppModel: VMDirectory {
+    func allVMs() -> [any VMControlling] { vms.map { AgentVMAdapter(instance: $0, model: self) } }
 }
