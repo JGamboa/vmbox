@@ -16,6 +16,8 @@ open build/Build/Products/Debug/VMBox.app
 ## Uso básico
 - **Nueva VM**: Ubuntu (última LTS o ISO propio) o macOS (último IPSW compatible o IPSW propio).
 - Ubuntu: completa el instalador en la ventana de la VM; después, en Configuración, marca «Expulsar» el ISO.
+- Ubuntu en pantalla Retina: la VM adopta la resolución física de la ventana, así que la primera vez pon en Ubuntu
+  **Configuración ▸ Pantallas ▸ Escala → 200 %** para verlo nítido y a tamaño normal (GRUB siempre se verá pequeño).
 - macOS: completa el Asistente de configuración la primera vez.
 - Las VMs viven en `~/Library/Application Support/VMBox/VMs/<nombre>.vmbox/`; las descargas, en `…/VMBox/Cache/`.
 
