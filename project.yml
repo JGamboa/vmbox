@@ -34,7 +34,23 @@ targets:
         ENABLE_APP_SANDBOX: NO
     dependencies:
       - package: VMCore
-        products: [VMCore]
+        products: [VMCore, ControlProtocol, AgentControl]
+      - target: vmbox-mcp
+        embed: true
+        link: false
+        copy:
+          destination: executables
+  vmbox-mcp:
+    type: tool
+    platform: macOS
+    sources: [vmbox-mcp]
+    settings:
+      base:
+        PRODUCT_NAME: vmbox-mcp
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: VMCore
+        products: [MCPBridge, ControlProtocol]
 schemes:
   VMBox:
     build:
