@@ -21,7 +21,11 @@ struct ViewInputInjector {
         case let .scroll(point, dx, dy): await scroll(at: point, dx: dx, dy: dy)
         case let .keys(strokes):
             view.window?.makeFirstResponder(view)
-            for stroke in strokes { await press(stroke) }
+            // Al retirar el control se cancela la Task: se para tras la pulsación en curso (sin dejar teclas apretadas).
+            for stroke in strokes {
+                if Task.isCancelled { break }
+                await press(stroke)
+            }
         }
     }
 

@@ -54,6 +54,12 @@ struct VMSettingsSheet: View {
                         }
                     }
                     Button("Añadir carpeta…") { addingFolder = true }
+                    if vm.config.agentControlEnabled, folders.contains(where: { !$0.readOnly }) {
+                        Label("Con el control de agente activado, el agente puede modificar o borrar el contenido de las carpetas con escritura en tu Mac. Retirar el control corta y pausa la VM, pero no deshace lo ya escrito. Márcalas como solo lectura si no necesita escribir.",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                     if !folders.isEmpty {
                         Text(SharedFolderNaming.guestHint(for: vm.config.os))
                             .font(.caption).textSelection(.enabled)
@@ -85,7 +91,8 @@ struct VMSettingsSheet: View {
             .modelAlert()
             .fileImporter(isPresented: $addingFolder, allowedContentTypes: [.folder]) { result in
                 if case .success(let url) = result, !folders.contains(where: { $0.path == url.path }) {
-                    folders.append(SharedFolder(path: url.path))
+                    // Con el control de agente activado, las carpetas nuevas se comparten en solo lectura.
+                    folders.append(SharedFolder(path: url.path, readOnly: vm.config.agentControlEnabled))
                 }
             }
             .toolbar {

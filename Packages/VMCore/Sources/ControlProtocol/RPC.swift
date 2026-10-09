@@ -3,7 +3,11 @@ import Foundation
 public enum RPC {
     /// Envía una petición por `fd`, espera una respuesta y cierra el descriptor.
     public static func exchange(fd: Int32, method: String, params: [String: JSONValue], timeout: Double) throws -> JSONValue {
-        let channel = LineChannel(fd: fd)
+        try exchange(channel: LineChannel(fd: fd), method: method, params: params, timeout: timeout)
+    }
+
+    /// Igual que `exchange(fd:)`, sobre un canal que otro hilo puede cortar con `shutdown()`.
+    public static func exchange(channel: LineChannel, method: String, params: [String: JSONValue], timeout: Double) throws -> JSONValue {
         defer { channel.close() }
         channel.setReadTimeout(timeout)
         let request = ControlRequest(id: Int.random(in: 1...Int(Int32.max)), method: method, params: params)

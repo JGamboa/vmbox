@@ -27,9 +27,16 @@ public struct GuestAgentClient: Sendable {
             throw ControlError(code: .guestAgentUnavailable,
                                message: "El guest-agent no responde en vsock:\(GuestAgent.port). Instálalo desde Configuración de la VM ▸ Guest agent. (\(error.localizedDescription))")
         }
+        // Cancelar la Task corta la conexión: el guest-agent lo detecta y mata el comando en curso.
+        let channel = LineChannel(fd: fd)
         do {
-            return try await RPC.runOnThread { try RPC.exchange(fd: fd, method: method, params: params, timeout: timeout) }
+            return try await withTaskCancellationHandler {
+                try await RPC.runOnThread { try RPC.exchange(channel: channel, method: method, params: params, timeout: timeout) }
+            } onCancel: {
+                channel.shutdown()
+            }
         } catch let error as ControlError where error.code == .appUnavailable {
+            try Task.checkCancellation()
             throw ControlError(code: .guestAgentUnavailable, message: "El guest-agent cerró la conexión sin responder")
         }
     }

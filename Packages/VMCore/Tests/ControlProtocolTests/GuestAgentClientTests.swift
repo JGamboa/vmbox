@@ -86,4 +86,41 @@ final class GuestAgentClientTests: XCTestCase {
             XCTFail("\(error)")
         }
     }
+
+    func testCancellingTheCallClosesTheConnectionSoTheGuestSeesEOF() async throws {
+        let guestSawEOF = expectation(description: "el invitado ve EOF")
+        let guest = HangingGuest { guestSawEOF.fulfill() }
+        let started = ContinuousClock.now
+        let task = Task { try await GuestAgentClient(connector: guest).call(method: "run_command", params: [:], timeout: 60) }
+        try await Task.sleep(for: .milliseconds(200))
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("debió lanzar")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("se esperaba CancellationError, llegó \(error)")
+        }
+        await fulfillment(of: [guestSawEOF], timeout: 5)
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(5))
+    }
+}
+
+/// Invitado que lee la petición y nunca responde; avisa cuando el anfitrión corta la conexión.
+struct HangingGuest: GuestConnecting {
+    let onEOF: @Sendable () -> Void
+
+    func connect() async throws -> Int32 {
+        var fds: [Int32] = [0, 0]
+        guard socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0 else { throw POSIXError(.EIO) }
+        let guestFD = fds[1]
+        let onEOF = self.onEOF
+        Thread {
+            let channel = LineChannel(fd: guestFD)
+            defer { channel.close() }
+            _ = try? channel.readLine()
+            if (try? channel.readLine()) == nil { onEOF() }
+        }.start()
+        return fds[0]
+    }
 }

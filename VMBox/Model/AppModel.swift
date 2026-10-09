@@ -1,5 +1,6 @@
 import AgentControl
 import AppKit
+import ControlProtocol
 import Foundation
 import Observation
 import Virtualization
@@ -22,6 +23,8 @@ enum AppError: Error, LocalizedError {
 @Observable
 final class AppModel {
     static let libraryPathKey = "libraryPath"
+    /// Pausar la VM al retirar el control de agente (por defecto, sí).
+    static let pauseOnRevokeKey = "pauseOnAgentRevoke"
 
     let library: VMLibrary
     let downloader = Downloader()
@@ -34,6 +37,10 @@ final class AppModel {
     private(set) var agentActivity: [UUID: Date] = [:]
     @ObservationIgnored private var views: [UUID: WeakView] = [:]
     @ObservationIgnored private var controlHost: ControlHost?
+    /// VMs a las que se retiró el control en esta sesión: el bloqueo no depende de poder guardar config.json.
+    @ObservationIgnored private var revokedControl: Set<UUID> = []
+    /// VMs cuyo cancel_all no pudo completarse (estaban pausadas o el agente no respondió): se reintenta al reanudar.
+    @ObservationIgnored private var pendingGuestCancel: Set<UUID> = []
 
     init() {
         let root = UserDefaults.standard.string(forKey: Self.libraryPathKey)
@@ -78,11 +85,69 @@ final class AppModel {
         return date.timeIntervalSince(last) < seconds
     }
 
+    func isAgentControlRevoked(_ id: UUID) -> Bool { revokedControl.contains(id) }
+
     func setAgentControl(_ id: UUID, _ enabled: Bool) {
+        guard let vm = instance(for: id) else { return }
+        if enabled {
+            revokedControl.remove(id)
+        } else {
+            // Primero se cierra la puerta (en memoria) y se cortan las llamadas en curso; luego se persiste.
+            revokedControl.insert(id)
+            controlHost?.revoke(id)
+        }
         do {
-            try instance(for: id)?.updateConfig { $0.agentControlEnabled = enabled }
+            try vm.updateConfig { $0.agentControlEnabled = enabled }
         } catch {
             alertMessage = error.localizedDescription
+        }
+        if !enabled {
+            Task { await contain(vm) }
+        }
+    }
+
+    /// Detiene lo que el agente dejó en marcha: mata en el invitado todo lo que lanzó el guest-agent
+    /// (cancel_all) y, si está activado (por defecto), pausa la VM para congelar cualquier otro efecto.
+    private func contain(_ vm: VMInstance) async {
+        var notes: [String] = []
+        switch vm.state {
+        case .running:
+            if await cancelGuestProcesses(vm) {
+                pendingGuestCancel.remove(vm.id)
+            } else {
+                pendingGuestCancel.insert(vm.id)
+                notes.append("No se pudo confirmar que el guest-agent matara los procesos del agente; se reintentará al reanudar.")
+            }
+        case .paused:
+            pendingGuestCancel.insert(vm.id)
+            notes.append("La VM ya estaba pausada: al reanudarla se matarán primero los procesos que lanzó el agente.")
+        default:
+            return
+        }
+        let pauseOnRevoke = UserDefaults.standard.object(forKey: Self.pauseOnRevokeKey) as? Bool ?? true
+        // Si el usuario volvió a activar el control mientras tanto, no se pausa.
+        guard pauseOnRevoke, vm.state == .running, isAgentControlRevoked(vm.id) else {
+            if !notes.isEmpty { alertMessage = notes.joined(separator: "\n\n") }
+            return
+        }
+        do {
+            try await vm.pause()
+            alertMessage = (["Se pausó «\(vm.config.name)» al retirar el control de agente, para congelar cualquier efecto que siguiera en curso (procesos, escrituras en carpetas compartidas). Revisa la VM y reanúdala con «Iniciar» cuando quieras."] + notes)
+                .joined(separator: "\n\n")
+        } catch {
+            alertMessage = (["No se pudo pausar «\(vm.config.name)» tras retirar el control de agente: \(error.localizedDescription). Detén la VM si quieres asegurarte de que no quede nada en curso."] + notes)
+                .joined(separator: "\n\n")
+        }
+    }
+
+    /// Pide al guest-agent que mate con SIGKILL todo lo que lanzó. Devuelve si lo confirmó sin supervivientes.
+    private func cancelGuestProcesses(_ vm: VMInstance) async -> Bool {
+        do {
+            let result = try await GuestAgentClient(connector: VsockGuestConnector(instance: vm))
+                .call(method: "cancel_all", params: [:], timeout: 5)
+            return result["survivors"] == .array([])
+        } catch {
+            return false
         }
     }
 
@@ -99,7 +164,12 @@ final class AppModel {
     func start(_ id: UUID) async throws {
         guard let vm = instance(for: id) else { throw AppError.vmNotFound }
         guard vm.state != .running else { return }
-        if vm.state == .paused { return try await vm.resume() }
+        if vm.state == .paused {
+            try await vm.resume()
+            if pendingGuestCancel.contains(id), await cancelGuestProcesses(vm) { pendingGuestCancel.remove(id) }
+            return
+        }
+        pendingGuestCancel.remove(id) // arranque en frío: no queda ningún proceso anterior
         let running = vms.filter { $0.state.isActive && $0.id != id }.map(\.config.os)
         guard StartPolicy.check(starting: vm.config.os, running: running) == .ok else { throw AppError.macOSLimitReached }
         vm.displayPlan = Self.displayPlan(for: vm.config.os)
