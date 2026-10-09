@@ -27,6 +27,7 @@ type, run commands, copy files and manage snapshots.
 - [Snapshots](#snapshots)
 - [Shared folders](#shared-folders)
 - [Guest agent](#guest-agent-commands-files-clipboard)
+- [Security: revoking agent control](#security-revoking-agent-control)
 - [Troubleshooting](#troubleshooting)
 - [Limitations](#limitations)
 - [Build from source](#build-from-source)
@@ -80,7 +81,8 @@ VMs are stored in `~/Library/Application Support/VMBox/VMs/<name>.vmbox/`. Downl
 
 ### 1. Allow control of the VM
 In the VM window, turn on **Permitir control de agente** (Allow agent control). While an agent is acting, the window
-shows a "🤖 Agente controlando" (Agent controlling) banner. Turning the switch off cuts access immediately.
+shows a "🤖 Agente controlando" (Agent controlling) banner. Turning the switch off cuts access immediately, stops what
+the agent left running and pauses the VM; see [Security](#security-revoking-agent-control) for the exact guarantees.
 
 ### 2. Register the MCP server
 The server is the `vmbox-mcp` program inside the app. Keep VMBox open: the server talks to the running app, and
@@ -137,7 +139,8 @@ python3 scripts/mcp_smoke.py /Applications/VMBox.app/Contents/MacOS/vmbox-mcp Ub
 
 ## Shared folders
 1. Stop the VM, open its **Configuración** (Settings) and go to **Carpetas compartidas** (Shared folders). Add
-   folders from your Mac; you can mark each one **Solo lectura** (Read-only).
+   folders from your Mac; you can mark each one **Solo lectura** (Read-only). If agent control is on, new folders are
+   added read-only, and Settings warns you about any folder the agent could write to.
 2. Start the VM. Where the folders appear depends on the guest:
    - **macOS**: in `/Volumes/My Shared Files`.
    - **Ubuntu**: mount them first:
@@ -157,6 +160,38 @@ without using the mouse and keyboard. It talks to VMBox over vsock, so the VM ne
    agent is not running, they return `guest_agent_unavailable`.
 
 > The installer sets up passwordless `sudo` for your user, which `as_root` needs. Use it only on disposable VMs.
+
+## Security: revoking agent control
+Turning **Permitir control de agente** off is fail-closed: it does not just block new calls, it also stops the effects
+already in progress. In this order:
+
+1. **New calls are rejected** with `agent_control_disabled`. The block is held in memory, so it applies even if
+   `config.json` cannot be saved.
+2. **Calls in progress are cut.** Each one returns `agent_control_disabled` right away, without waiting for its work,
+   and a result that arrives after you turned the switch off is never handed to the agent. Guest calls close their
+   vsock connection, and the guest agent kills the process group of the command that connection was running.
+3. **The guest agent kills everything it started** (`cancel_all`, with `SIGKILL`): the process group of every command,
+   any process still descending from the agent, and processes started with `as_root` (killed through `sudo -n`). On
+   Ubuntu, where it runs as the systemd user service `vmbox-guest-agent.service`, it also kills every process in the
+   service's cgroup, which covers processes that called `setsid` or double-forked to detach. This needs guest agent
+  0.2.0 or later; if you installed an older one, run the install command again.
+4. **The VM is paused**, which freezes everything else at once, including writes to shared folders. VMBox tells you
+   it paused the VM and why; resume it with **Iniciar** (Start) when you are ready. You can turn this off in
+   VMBox ▸ Settings ▸ **Control de agente**. If the VM was already paused, the processes the agent started are
+   killed as soon as you resume it, before anything else.
+
+What this does **not** guarantee:
+- **Nothing is undone.** Files already written, inside the VM or in a writable shared folder on your Mac, stay
+  written. For folders the agent should not change, use **Solo lectura** (Read-only); VirtioFS enforces it on the host.
+- **Processes outside the guest agent's reach survive `cancel_all`**: anything the agent handed to the guest's
+  service manager (`systemd-run`, `systemctl start`, `launchctl`, `cron`, `at`), and on macOS guests also processes
+  that detached with `setsid` or a double fork after their parent exited (macOS has no cgroups). Pausing still
+  freezes them; stopping the VM or restoring a snapshot gets rid of them.
+- **Screen input already sent stays sent.** `type_text` and `key` stop after the keystroke in progress (no key is left
+  held down); a `click`, `drag` or `scroll` in progress finishes, since each takes well under a second.
+- If the guest agent is not installed or does not answer, there is nothing for it to kill; VMBox tells you, pauses
+  the VM anyway, and retries `cancel_all` when you resume it.
+- A compromised guest can ignore `cancel_all`. Pausing is enforced by the host and does not depend on the guest.
 
 ## Troubleshooting
 - **macOS says VMBox "is damaged" or "can't be opened"**: run the `xattr` command from [Install](#install).

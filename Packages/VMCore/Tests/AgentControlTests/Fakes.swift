@@ -20,9 +20,22 @@ final class FakeVM: VMControlling {
     var snapshotError: (any Error)?
     var guestCalls: [(method: String, params: [String: JSONValue], timeout: Double)] = []
     var guestReply: JSONValue = ["ok": true]
+    /// Si se fija, guestCall espera este tiempo (cancelable), como un run_command largo.
+    var guestDelay: Duration?
+    var guestCancelled = false
+    var onGuestCall: (() -> Void)?
 
     func guestCall(method: String, params: [String: JSONValue], timeout: Double) async throws -> JSONValue {
         guestCalls.append((method, params, timeout))
+        onGuestCall?()
+        if let guestDelay {
+            do {
+                try await Task.sleep(for: guestDelay)
+            } catch {
+                guestCancelled = true
+                throw error
+            }
+        }
         return guestReply
     }
 

@@ -12,6 +12,9 @@ final class ControlHost {
         service.onAgentActivity = { [weak model] id in model?.noteAgentActivity(id) }
     }
 
+    /// Corta las llamadas del agente en curso sobre la VM (responden `agent_control_disabled`).
+    func revoke(_ id: UUID) { service.revoke(id) }
+
     /// Borra un socket viejo y escucha en ~/Library/Application Support/VMBox/control.sock (0600).
     func start() throws {
         try FileManager.default.createDirectory(at: ControlPaths.appSupport, withIntermediateDirectories: true)

@@ -20,7 +20,7 @@ func TestServeAnswersEachLineWithSameShapeAsControlProtocol(t *testing.T) {
 			"esto no es json\n" +
 			`{"jsonrpc":"2.0","id":8,"method":"nada","params":{}}` + "\n")
 	var output bytes.Buffer
-	if err := Serve(pipeRW{input, &output}, testHandler()); err != nil {
+	if err := Serve(pipeRW{input, &output}, testHandler(), false); err != nil {
 		t.Fatal(err)
 	}
 	scanner := bufio.NewScanner(&output)

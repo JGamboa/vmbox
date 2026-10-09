@@ -5,6 +5,7 @@ import VMCore
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @AppStorage(AppModel.libraryPathKey) private var libraryPath = VMLibrary.defaultRoot.path
+    @AppStorage(AppModel.pauseOnRevokeKey) private var pauseOnRevoke = true
     @State private var choosingFolder = false
 
     private var mcpCommand: String {
@@ -26,6 +27,11 @@ struct SettingsView: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(mcpCommand, forType: .string)
                 }
+            }
+            Section("Control de agente") {
+                Toggle("Pausar la VM al retirar «Permitir control de agente»", isOn: $pauseOnRevoke)
+                Text("Al retirar el control, las llamadas en curso se cortan y el guest-agent mata los procesos que lanzó. Pausar congela además cualquier otro efecto (p. ej. escrituras en carpetas compartidas) hasta que reanudes la VM.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Log del MCP") {
                 List(model.mcpLog.recent.reversed()) { entry in
