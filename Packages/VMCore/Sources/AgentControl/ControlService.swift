@@ -10,6 +10,9 @@ public final class ControlService {
     private let directory: any VMDirectory
     private let log: MCPLog?
     private var lastGeometry: [UUID: CaptureGeometry] = [:]
+    /// Llamadas en curso por VM, para que `revoke` las corte.
+    private var inFlight: [UUID: [Int: InFlightCall]] = [:]
+    private var nextCallToken = 0
     public var onAgentActivity: (UUID) -> Void = { _ in }
 
     public init(directory: any VMDirectory, log: MCPLog? = nil) {
@@ -77,8 +80,20 @@ public final class ControlService {
             throw ControlError(code: .invalidArgument, message: "Falta el parámetro «vm»")
         }
         let vm = try controllable(vmName)
-        let params = JSONValue.object(request.params)
+        let result: JSONValue
+        do {
+            result = try await revocable(vm) { try await self.perform(request, on: vm) }
+        } catch {
+            _ = try controllable(vmName)
+            throw error
+        }
+        // Si el control se retiró mientras la acción corría, el agente no recibe su resultado.
+        _ = try controllable(vmName)
+        return result
+    }
 
+    func perform(_ request: ControlRequest, on vm: any VMControlling) async throws -> JSONValue {
+        let params = JSONValue.object(request.params)
         switch request.method {
         case "start_vm":
             if vm.state != .running { try await vm.start() }
@@ -186,6 +201,48 @@ public final class ControlService {
     static func requireAbsolute(_ path: String) throws {
         guard path.hasPrefix("/") else {
             throw ControlError(code: .invalidArgument, message: "path debe ser absoluta: \(path)")
+        }
+    }
+
+    // MARK: Revocación
+
+    private final class InFlightCall {
+        let continuation: CheckedContinuation<JSONValue, any Error>
+        var task: Task<Void, Never>?
+        init(_ continuation: CheckedContinuation<JSONValue, any Error>) { self.continuation = continuation }
+    }
+
+    /// Corta en el acto todas las llamadas en curso sobre la VM: cada una responde `agent_control_disabled`
+    /// sin esperar a que termine su trabajo, y su Task se cancela (lo que cierra la conexión vsock con el
+    /// guest-agent, que entonces mata el comando). La app lo llama al desactivar «Permitir control de agente».
+    public func revoke(_ vmID: UUID) {
+        guard let calls = inFlight.removeValue(forKey: vmID) else { return }
+        for call in calls.values {
+            call.task?.cancel()
+            call.continuation.resume(throwing: ControlError(
+                code: .agentControlDisabled,
+                message: "El usuario retiró «Permitir control de agente» mientras la llamada estaba en curso; se canceló."))
+        }
+    }
+
+    /// Número de llamadas en curso sobre la VM (para pruebas).
+    public func inFlightCount(_ vmID: UUID) -> Int { inFlight[vmID]?.count ?? 0 }
+
+    private func revocable(_ vm: any VMControlling, _ work: @escaping @MainActor () async throws -> JSONValue) async throws -> JSONValue {
+        let vmID = vm.id
+        let token = nextCallToken
+        nextCallToken += 1
+        return try await withCheckedThrowingContinuation { continuation in
+            let call = InFlightCall(continuation)
+            inFlight[vmID, default: [:]][token] = call
+            call.task = Task { @MainActor in
+                let result: Result<JSONValue, any Error>
+                do { result = .success(try await work()) } catch { result = .failure(error) }
+                // Si `revoke` ya respondió, el resultado se descarta.
+                guard let call = self.inFlight[vmID]?.removeValue(forKey: token) else { return }
+                if self.inFlight[vmID]?.isEmpty == true { self.inFlight.removeValue(forKey: vmID) }
+                call.continuation.resume(with: result)
+            }
         }
     }
 

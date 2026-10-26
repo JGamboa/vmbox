@@ -18,7 +18,7 @@ final class AgentVMAdapter: VMControlling {
     var name: String { instance.config.name }
     var os: GuestOS { instance.config.os }
     var state: VMState { instance.state }
-    var agentControlEnabled: Bool { instance.config.agentControlEnabled }
+    var agentControlEnabled: Bool { instance.config.agentControlEnabled && !model.isAgentControlRevoked(id) }
 
     func start() async throws {
         do {

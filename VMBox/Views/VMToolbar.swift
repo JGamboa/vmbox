@@ -32,7 +32,7 @@ struct VMToolbar: View {
             ))
             .toggleStyle(.switch)
             .labelStyle(.titleAndIcon)
-            .help("Permite que vmbox-mcp (p. ej. Claude Code) vea y controle esta VM")
+            .help("Permite que vmbox-mcp (p. ej. Claude Code) vea y controle esta VM. Al desactivarlo se cortan las llamadas en curso, se matan los procesos que lanzó el agente y se pausa la VM.")
             Spacer()
             Text(vm.state.displayName).foregroundStyle(.secondary)
         }

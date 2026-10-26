@@ -17,15 +17,20 @@ func main() {
 	flag.Parse()
 	h := NewHandler()
 	if *useStdio {
-		if err := Serve(stdio{}, h); err != nil {
+		if err := Serve(stdio{}, h, false); err != nil {
 			log.Fatal(err)
 		}
 		return
 	}
+	if data, err := os.ReadFile("/proc/self/cgroup"); err == nil {
+		if dir, ok := serviceCgroupDir(string(data)); ok {
+			h.CgroupDir = dir
+		}
+	}
 	log.Printf("vmbox-guest-agent %s escuchando en vsock:%d", version, *port)
 	log.Fatal(ListenVsock(uint32(*port), func(conn *os.File) {
 		defer conn.Close()
-		if err := Serve(conn, h); err != nil {
+		if err := Serve(conn, h, true); err != nil {
 			log.Printf("conexión: %v", err)
 		}
 	}))

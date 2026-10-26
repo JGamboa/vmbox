@@ -85,6 +85,15 @@ public final class LineChannel: @unchecked Sendable {
         }
     }
 
+    /// Corta la conexión en ambos sentidos sin cerrar el descriptor: un `readLine` bloqueado en otro hilo
+    /// vuelve con EOF. No hace nada si el canal ya se cerró (su número de descriptor podría reutilizarse).
+    public func shutdown() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !closed else { return }
+        Darwin.shutdown(fd, SHUT_RDWR)
+    }
+
     public func close() {
         lock.lock()
         defer { lock.unlock() }

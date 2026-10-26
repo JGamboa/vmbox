@@ -12,13 +12,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode/utf8"
 )
 
 const (
-	version        = "0.1.0"
+	version        = "0.2.0"
 	maxOutputBytes = 1 << 20
 	maxFileBytes   = 10 << 20
 	maxTimeout     = time.Hour
@@ -28,6 +29,11 @@ type Handler struct {
 	Shell      []string // p. ej. ["/bin/sh", "-c"]
 	RootPrefix []string // p. ej. ["sudo", "-n"]
 	Clipboard  Clipboard
+	// CgroupDir: cgroup v2 del servicio; si no está vacío, cancel_all mata también todo lo que contenga.
+	CgroupDir string
+
+	mu     sync.Mutex
+	groups map[int]struct{} // grupos de procesos de los comandos lanzados
 }
 
 func NewHandler() *Handler {
@@ -35,6 +41,11 @@ func NewHandler() *Handler {
 }
 
 func (h *Handler) Dispatch(method string, params json.RawMessage) (any, *RPCError) {
+	return h.DispatchContext(context.Background(), method, params)
+}
+
+// DispatchContext atiende una petición; cancelar ctx (p. ej. el anfitrión cerró la conexión) mata el comando en curso.
+func (h *Handler) DispatchContext(ctx context.Context, method string, params json.RawMessage) (any, *RPCError) {
 	switch method {
 	case "ping":
 		return map[string]any{"version": version, "os": runtime.GOOS}, nil
@@ -54,7 +65,9 @@ func (h *Handler) Dispatch(method string, params json.RawMessage) (any, *RPCErro
 			}
 			timeout = min(time.Duration(*p.TimeoutS*float64(time.Second)), maxTimeout)
 		}
-		return h.runCommand(p.Command, timeout, p.AsRoot)
+		return h.runCommand(ctx, p.Command, timeout, p.AsRoot)
+	case "cancel_all":
+		return h.cancelAll()
 	case "read_file":
 		var p struct {
 			Path string `json:"path"`
@@ -108,7 +121,7 @@ func decode(params json.RawMessage, v any) *RPCError {
 	return nil
 }
 
-func (h *Handler) runCommand(command string, timeout time.Duration, asRoot bool) (any, *RPCError) {
+func (h *Handler) runCommand(parent context.Context, command string, timeout time.Duration, asRoot bool) (any, *RPCError) {
 	if strings.TrimSpace(command) == "" {
 		return nil, invalidArgument("falta el parámetro «command»")
 	}
@@ -116,7 +129,7 @@ func (h *Handler) runCommand(command string, timeout time.Duration, asRoot bool)
 	if asRoot {
 		args = append(append([]string{}, h.RootPrefix...), args...)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	// Grupo de procesos propio para matar también a los hijos del shell al vencer el timeout.
@@ -126,7 +139,19 @@ func (h *Handler) runCommand(command string, timeout time.Duration, asRoot bool)
 	var stdout, stderr limitedBuffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 
-	err := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		if parent.Err() != nil {
+			return nil, internalError("petición cancelada")
+		}
+		return nil, internalError("no se pudo ejecutar el comando: " + err.Error())
+	}
+	pgid := cmd.Process.Pid
+	h.trackGroup(pgid)
+	err := cmd.Wait()
+	h.releaseGroup(pgid)
+	if parent.Err() != nil {
+		return nil, internalError("petición cancelada")
+	}
 	timedOut := errors.Is(ctx.Err(), context.DeadlineExceeded)
 	exitCode := 0
 	var exitErr *exec.ExitError
